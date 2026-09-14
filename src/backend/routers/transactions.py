@@ -229,7 +229,18 @@ def create_transaction(
         ]
     )
 
+@router.get("/uncategorized-count")
+def get_uncategorized_count(session: Session = Depends(get_session)):
+    statement = (
+        select(func.count(func.distinct(Transaction.id)))
+        .outerjoin(TransactionSplit, Transaction.id == TransactionSplit.transaction_id)
+        .where(or_(TransactionSplit.category_id == None, TransactionSplit.id == None))
+    )
+    count = session.exec(statement).one()
+    return {"count": count}
+
 @router.get("/{transaction_id}", response_model=TransactionResponse)
+
 def get_transaction(
     transaction_id: uuid.UUID,
     session: Session = Depends(get_session)

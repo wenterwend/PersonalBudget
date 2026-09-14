@@ -195,7 +195,76 @@ def delete_or_archive_category(
         session.commit()
         return {"status": "deleted", "message": "Category permanently deleted."}
 
+class CategoryMergeRequest(BaseModel):
+    target_category_id: uuid.UUID
+
+@router.post("/{category_id}/merge")
+def merge_categories(
+    category_id: uuid.UUID,
+    req: CategoryMergeRequest,
+    session: Session = Depends(get_session)
+):
+    from ..models import TransactionSplit, Rule, MonthlyBudget
+    
+    if category_id == req.target_category_id:
+        raise HTTPException(status_code=400, detail="Cannot merge category into itself")
+
+    source_cat = session.get(Category, category_id)
+    if not source_cat:
+        raise HTTPException(status_code=404, detail="Source category not found")
+
+    target_cat = session.get(Category, req.target_category_id)
+    if not target_cat:
+        raise HTTPException(status_code=404, detail="Target category not found")
+
+    # 1. Reassign TransactionSplits
+    source_splits = session.exec(
+        select(TransactionSplit).where(TransactionSplit.category_id == category_id)
+    ).all()
+    for s in source_splits:
+        s.category_id = target_cat.id
+        session.add(s)
+
+    # 2. Reassign Rules
+    source_rules = session.exec(
+        select(Rule).where(Rule.target_category_id == category_id)
+    ).all()
+    for r in source_rules:
+        r.target_category_id = target_cat.id
+        session.add(r)
+
+    # 3. Merge MonthlyBudgets
+    source_budgets = session.exec(
+        select(MonthlyBudget).where(MonthlyBudget.category_id == category_id)
+    ).all()
+    for sb in source_budgets:
+        target_b = session.exec(
+            select(MonthlyBudget).where(
+                MonthlyBudget.category_id == target_cat.id,
+                MonthlyBudget.month == sb.month
+            )
+        ).first()
+        if target_b:
+            target_b.budgeted_cents += sb.budgeted_cents
+            session.add(target_b)
+            session.delete(sb)
+        else:
+            sb.category_id = target_cat.id
+            session.add(sb)
+
+    # 4. Delete source category
+    session.delete(source_cat)
+    session.commit()
+
+    return {
+        "status": "merged",
+        "message": f"Category '{source_cat.name}' successfully merged into '{target_cat.name}'.",
+        "source_category_id": category_id,
+        "target_category_id": target_cat.id
+    }
+
 @router.delete("/groups/{group_id}")
+
 def delete_category_group(
     group_id: uuid.UUID,
     session: Session = Depends(get_session)

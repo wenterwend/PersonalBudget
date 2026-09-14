@@ -420,6 +420,17 @@ Legend: `[ ]` Pending | `[🔄]` In Progress | `[x]` Completed
 - [x] **5.3 SvelteKit PWA (@vite-pwa/sveltekit) & Multi-User Concurrency (US-6.1, US-6.2)**
   - Web App Manifest, PWA icons, WAL busy timeout pragma, and responsive multi-device design.
 
+### Milestone 6: Rules Management Enhancements, Advanced Category Operations & Saved Queries (US-3.5, US-3.6, US-3.7, US-4.7, US-5.5, US-5.6)
+- [x] **6.1 Rules Management Enhancements (US-3.5, US-3.6, US-3.7)**
+  - Add search and filtering capabilities to the Rules UI by target payee, target category, or match text (US-3.5).
+  - Implement uncategorized transaction count indicator badge in the UI header/ledger (US-3.6).
+  - Add real-time rule match preview endpoint and interactive modal preview counter before saving rules (US-3.7).
+- [x] **6.2 Advanced Category Operations (US-4.7)**
+  - Implement endpoints and UI for category editing, re-parenting across category groups, and merging categories with automatic split re-assignment (US-4.7).
+- [x] **6.3 Saved Queries & Query Builder Enhancements (US-5.5, US-5.6)**
+  - Create database schema and API endpoints for persisting and managing named saved queries (US-5.5).
+  - Add "Uncategorized" filter selection support in the Visual Query Builder AST and query translator (US-5.6).
+
 ---
 
 ## User Story Coverage Verification Matrix
@@ -437,15 +448,21 @@ Legend: `[ ]` Pending | `[🔄]` In Progress | `[x]` Completed
 | **US-3.2** | Retroactive Rule Application | Milestone 2 | `[x] Completed` |
 | **US-3.3** | Probabilistic Category Suggestions (Naive Bayes) | Milestone 3 | `[x] Completed` |
 | **US-3.4** | One-Click Category Acceptance | Milestone 3 | `[x] Completed` |
+| **US-3.5** | Rules Search & Filtering | Milestone 6 | `[x] Completed` |
+| **US-3.6** | Uncategorized Transaction Count | Milestone 6 | `[x] Completed` |
+| **US-3.7** | Rule Matching Preview & Count | Milestone 6 | `[x] Completed` |
 | **US-4.1** | Category & Category Group Setup | Milestone 4 | `[x] Completed` |
 | **US-4.2** | Multi-Month Average Spreading | Milestone 4 | `[x] Completed` |
 | **US-4.3** | Historical Month Navigation | Milestone 4 | `[x] Completed` |
 | **US-4.4** | Category Balance Rollover | Milestone 4 | `[x] Completed` |
 | **US-4.5** | Category Balance Transfer to Savings | Milestone 4 | `[x] Completed` |
 | **US-4.6** | Category Creation, Customization & Removal | Milestone 4 | `[x] Completed` |
+| **US-4.7** | Category Editing, Re-parenting & Merging | Milestone 6 | `[x] Completed` |
 | **US-5.1** | Custom Visual Query Builder | Milestone 5 | `[x] Completed` |
 | **US-5.2** | Query Result CSV Export | Milestone 5 | `[x] Completed` |
 | **US-5.3** | Spending Reports & Dashboards | Milestone 5 | `[x] Completed` |
 | **US-5.4** | Printer-Friendly Reporting | Milestone 5 | `[x] Completed` |
+| **US-5.5** | Saved Queries | Milestone 6 | `[x] Completed` |
+| **US-5.6** | Uncategorized Option in Query Builder | Milestone 6 | `[x] Completed` |
 | **US-6.1** | Mobile Progressive Web App (PWA) | Milestone 5 | `[x] Completed` |
 | **US-6.2** | Concurrent Multi-User Access | Milestone 5 | `[x] Completed` |

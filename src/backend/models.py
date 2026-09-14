@@ -131,3 +131,17 @@ class Rule(SQLModel, table=True):
     target_payee: Optional[str] = Field(default=None)
     target_category_id: Optional[uuid.UUID] = Field(default=None, foreign_key="categories.id")
     is_active: bool = Field(default=True, index=True)
+
+# ----------------------------------------------------------------------
+# Saved Query Entity
+# ----------------------------------------------------------------------
+class SavedQuery(SQLModel, table=True):
+    __tablename__ = "saved_queries"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    name: str = Field(unique=True, index=True)
+    description: Optional[str] = Field(default=None)
+    query_ast: str  # JSON string of AST structure
+    created_at: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
+    updated_at: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
+

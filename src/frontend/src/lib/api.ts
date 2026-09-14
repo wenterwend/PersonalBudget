@@ -290,9 +290,48 @@ export function deleteTransaction(id: string): Promise<void> {
   return request<void>(`/transactions/${id}`, { method: 'DELETE' });
 }
 
+export interface SavedQuery {
+  id: string;
+  name: string;
+  description?: string | null;
+  query_ast: any;
+  created_at: string;
+  updated_at: string;
+}
+
+export function updateCategory(id: string, data: Partial<{ name: string; group_id: string; is_income: boolean; is_archived: boolean }>): Promise<Category> {
+  return request<Category>(`/categories/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export function mergeCategory(sourceId: string, targetId: string): Promise<{ status: string; message: string }> {
+  return request<{ status: string; message: string }>(`/categories/${sourceId}/merge`, {
+    method: 'POST',
+    body: JSON.stringify({ target_category_id: targetId }),
+  });
+}
+
+export function getUncategorizedCount(): Promise<{ count: number }> {
+  return request<{ count: number }>('/transactions/uncategorized-count');
+}
+
 // Rules API
-export function getRules(): Promise<Rule[]> {
-  return request<Rule[]>('/rules');
+export function getRules(filters: { search?: string; categoryId?: string; matchField?: string } = {}): Promise<Rule[]> {
+  const params = new URLSearchParams();
+  if (filters.search) params.append('q', filters.search);
+  if (filters.categoryId) params.append('category_id', filters.categoryId);
+  if (filters.matchField) params.append('match_field', filters.matchField);
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  return request<Rule[]>(`/rules${qs}`);
+}
+
+export function previewRule(data: RuleCreate): Promise<{ match_count: number; sample_matches: any[] }> {
+  return request<{ match_count: number; sample_matches: any[] }>('/rules/preview', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 export function createRule(data: RuleCreate, applyRetroactive = false): Promise<Rule> {
@@ -320,6 +359,34 @@ export function applySingleRule(id: string): Promise<{ updated_transactions_coun
 export function applyAllRules(): Promise<{ updated_transactions_count: number }> {
   return request<{ updated_transactions_count: number }>('/rules/apply-all', { method: 'POST' });
 }
+
+// Saved Queries API
+export function getSavedQueries(): Promise<SavedQuery[]> {
+  return request<SavedQuery[]>('/queries/saved');
+}
+
+export function createSavedQuery(data: { name: string; description?: string; query_ast: any }): Promise<SavedQuery> {
+  return request<SavedQuery>('/queries/saved', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateSavedQuery(id: string, data: { name?: string; description?: string; query_ast?: any }): Promise<SavedQuery> {
+  return request<SavedQuery>(`/queries/saved/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteSavedQuery(id: string): Promise<void> {
+  return request<void>(`/queries/saved/${id}`, { method: 'DELETE' });
+}
+
+export function executeSavedQuery(id: string): Promise<Transaction[]> {
+  return request<Transaction[]>(`/queries/saved/${id}/execute`, { method: 'POST' });
+}
+
 
 // Machine Learning API
 export function getMLStatus(): Promise<{ is_trained: boolean; classes_count: number }> {
