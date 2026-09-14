@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+body {
+  @apply bg-slate-50 text-slate-900 min-h-screen antialiased;
+}
+
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+
+  .no-print,
+  nav,
+  header,
+  button,
+  .no-print-tab {
+    display: none !important;
+  }
+
+  .print\:shadow-none {
+    box-shadow: none !important;
+  }
+
+  .print\:border-none {
+    border: none !important;
+  }
+
+  .print\:break-inside-avoid {
+    break-inside: avoid !important;
+  }
+}
