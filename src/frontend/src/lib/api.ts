@@ -275,8 +275,9 @@ export function updateTransaction(id: string, data: Partial<TransactionCreate>):
   });
 }
 
-export function confirmCategory(transactionId: string, categoryId?: string): Promise<Transaction> {
-  return request<Transaction>(`/transactions/${transactionId}/confirm-category`, {
+export function confirmCategory(transactionId: string, categoryId?: string, batch = false): Promise<Transaction> {
+  const qs = batch ? '?batch=true' : '';
+  return request<Transaction>(`/transactions/${transactionId}/confirm-category${qs}`, {
     method: 'POST',
     body: JSON.stringify({ category_id: categoryId }),
   });
@@ -544,6 +545,20 @@ export interface NetWorthResponse {
   accounts: AccountSummary[];
 }
 
+export interface CategoryInitiatorDetail {
+  payee: string;
+  total_cents: number;
+  transaction_count: number;
+  percentage: number;
+}
+
+export interface CategoryInitiatorResponse {
+  category_id: string;
+  category_name: string;
+  total_expense_cents: number;
+  initiators: CategoryInitiatorDetail[];
+}
+
 export function runASTQuery(ast: QueryGroup): Promise<QueryResult> {
   return request<QueryResult>('/reports/query', {
     method: 'POST',
@@ -592,3 +607,12 @@ export function getIncomeVsExpense(startDate?: string, endDate?: string): Promis
 export function getNetWorthHistory(): Promise<NetWorthResponse> {
   return request<NetWorthResponse>('/reports/net-worth-history');
 }
+
+export function getCategoryInitiators(categoryId: string, startDate?: string, endDate?: string): Promise<CategoryInitiatorResponse> {
+  const params = new URLSearchParams();
+  params.append('category_id', categoryId);
+  if (startDate) params.append('start_date', startDate);
+  if (endDate) params.append('end_date', endDate);
+  return request<CategoryInitiatorResponse>(`/reports/category-initiators?${params.toString()}`);
+}
+

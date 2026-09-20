@@ -240,11 +240,11 @@
     loadTransactions();
   }
 
-  // One-Click ML Category Confirmation (US-3.4)
-  async function handleConfirmCategory(event: CustomEvent<{ transaction: Transaction; categoryId?: string }>) {
-    const { transaction, categoryId } = event.detail;
+  // One-Click & Batch ML Category Confirmation (US-3.4, US-3.8)
+  async function handleConfirmCategory(event: CustomEvent<{ transaction: Transaction; categoryId?: string; batch?: boolean }>) {
+    const { transaction, categoryId, batch } = event.detail;
     try {
-      await confirmCategory(transaction.id, categoryId);
+      await confirmCategory(transaction.id, categoryId, batch);
       await loadTransactions();
       await loadBudgetGridData();
     } catch (e: any) {

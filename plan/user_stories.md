@@ -14,6 +14,10 @@ As a user (especially on mobile), I want to quickly enter a single transaction w
 ### US-1.4: Split Transactions
 As a user, I want to divide a single transaction into multiple categories and amounts, so that a single trip to a superstore (e.g., Target) accurately reflects spending across groceries, home goods, and clothing.
 
+### US-1.5: Automated Database Backups & Safe Schema Change Scripts
+As a user, I want automated backups on application startup and non-destructive schema change scripts, so that my historical database records are preserved across application updates, schema changes, and test executions.
+
+
 ## 2. Transaction Import & Parsing
 
 ### US-2.1: File-Based Transaction Import
@@ -48,6 +52,9 @@ As a user, I want to see the total number of transactions that are uncategorized
 ### US-3.7: Rule Matching Preview & Count
 As a user, when adding a rule, I want to see a preview and count of matches at the bottom of the modal window so that I can tell if the rule is effective before adding it.
 
+### US-3.8: Batch Category Confirmation for Similar Transactions
+As a user, when an imported transaction category is confirmed, update all similar transactions so that I don't have to click confirm on every transaction with the same base string.
+
 ## 4. Budgeting & Planning
 
 ### US-4.1: Category and Category Group Setup
@@ -71,6 +78,10 @@ As a user, I want to add new expense or income categories and archive or remove 
 ### US-4.7: Category Editing, Re-parenting & Merging
 As a user, I want to be able to edit a budget sub category name or change it's parent category or merge an existing category into another, so that I can change my budget strategy.
 
+### US-4.8: Positive Value Normalization for Rolling Average Budget Copies
+As a user, on the budget screen, when I click copy for the 3 month average and the amount populates into the budget, ensure the amount is a positive value rather than retaining the negative amount so that I don't have to do that step manually.
+
+
 ## 5. Query Builder, Reporting & Export
 
 ### US-5.1: Custom Visual Query Builder
@@ -90,6 +101,44 @@ As a user, I want to save queries with a saved name in the query builder so that
 
 ### US-5.6: Uncategorized Option in Query Builder
 As a user, I want to be able to select "Uncategorized" as an option in the Query Builder so that I can see which items are uncategorized.
+
+### US-5.7: Category Breakdown by Transaction Initiator
+As a user, on the reports screen, I want to be able to click on a category and see a chart or graph displaying a breakdown of the category by the transaction initiator so that I can understand the proportions of category attribution.
+
+### US-5.8: Custom Date Range Selector in Reports
+As a user, on the report screen, I want to be able to select a date range in addition to the period selector so that I can view trends like first quarter, second quarter.
+
+### US-5.9: Context-Aware Query Input Validation & Field Operators
+As a user, on the query builder page, I want to have rules on the query inputs such as not allowing letters when searching the amount field, and limiting operator selection based on the chosen field (e.g., preventing operators like greater-than when "account" is selected with an account dropdown picker), so that constructing queries is seamless without encountering errors.
+
+### US-5.10: Initiator Transaction Drill-Down View in Reports
+As a user, in the initiator breakdown view of a category, I want to click on a Payee and see a list of transactions that represent that group of transactions so that I can understand what made up that statistic.
+
+### US-5.11: Month-over-Month Category Comparison Chart
+As a user, on the reports screen, I want to view a month-over-month category comparison chart so that I can see spending trends and seasonal variations across categories over time.
+
+### US-5.12: Fixed vs. Variable Expense Breakdown Report
+As a user, on the reports screen, I want to view a fixed vs. variable expense breakdown so that I can distinguish mandatory living costs from discretionary spending.
+
+### US-5.13: Day-of-Week & Monthly Heatmap Visualization
+As a user, on the reports screen, I want to view a calendar heatmap of transaction spending by day of the week and date of the month so that I can identify peak spending habits.
+
+### US-5.14: Top Merchant & Payee Leaderboard
+As a user, on the reports screen, I want to view a top merchant/payee leaderboard ranking merchants by total spending amount and transaction frequency so that I can understand where most of my money goes.
+
+### US-5.15: Recurring Subscriptions & Regular Bills Tracker
+As a user, I want a dedicated subscriptions and recurring bills report that detects regular charges and predicts upcoming due dates so that I can track annual subscription overhead.
+
+### US-5.16: Budget Variance (Over/Under Target) Report
+As a user, on the budget and reports screens, I want a budget variance report highlighting over-budget and under-budget categories so that I can quickly evaluate budget accuracy.
+
+### US-5.17: Savings Rate & Liquid Runway Trend Chart
+As a user, on the reports screen, I want to view my net savings rate percentage and estimated liquid financial runway so that I can gauge my emergency financial security.
+
+
+
+
+
 
 ## 6. Multi-Device Access & Synchronization
 

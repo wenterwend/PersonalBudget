@@ -377,7 +377,18 @@
                     <div class="flex items-center gap-2">
                       <!-- Field -->
                       <select
-                        bind:value={subItem.field}
+                        value={subItem.field}
+                        onchange={(e) => {
+                          const val = (e.target as HTMLSelectElement).value;
+                          subItem.field = val;
+                          if (val === 'account_id' || val === 'category_id' || val === 'cleared') {
+                            if (!['eq', 'neq'].includes(subItem.operator)) subItem.operator = 'eq';
+                          } else if (val === 'raw_payee') {
+                            if (!['contains', 'starts_with', 'eq', 'neq'].includes(subItem.operator)) subItem.operator = 'contains';
+                          } else if (val === 'amount_cents' || val === 'date') {
+                            if (!['eq', 'neq', 'gt', 'gte', 'lt', 'lte'].includes(subItem.operator)) subItem.operator = 'lt';
+                          }
+                        }}
                         class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800"
                       >
                         <option value="date">Date</option>
@@ -393,14 +404,22 @@
                         bind:value={subItem.operator}
                         class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800"
                       >
-                        <option value="eq">equals</option>
-                        <option value="neq">not equals</option>
-                        <option value="contains">contains</option>
-                        <option value="starts_with">starts with</option>
-                        <option value="gt">greater than (&gt;)</option>
-                        <option value="gte">greater or equal (&ge;)</option>
-                        <option value="lt">less than (&lt;)</option>
-                        <option value="lte">less or equal (&le;)</option>
+                        {#if subItem.field === 'account_id' || subItem.field === 'category_id' || subItem.field === 'cleared'}
+                          <option value="eq">equals</option>
+                          <option value="neq">not equals</option>
+                        {:else if subItem.field === 'raw_payee'}
+                          <option value="contains">contains</option>
+                          <option value="starts_with">starts with</option>
+                          <option value="eq">equals</option>
+                          <option value="neq">not equals</option>
+                        {:else}
+                          <option value="eq">equals</option>
+                          <option value="neq">not equals</option>
+                          <option value="gt">greater than (&gt;)</option>
+                          <option value="gte">greater or equal (&ge;)</option>
+                          <option value="lt">less than (&lt;)</option>
+                          <option value="lte">less or equal (&le;)</option>
+                        {/if}
                       </select>
 
                       <!-- Value Input -->
@@ -440,11 +459,16 @@
                         />
                       {:else if subItem.field === 'amount_cents'}
                         <input
-                          type="number"
-                          step="0.01"
+                          type="text"
+                          inputmode="decimal"
                           placeholder="e.g. -50.00"
                           bind:value={subItem.value}
-                          class="flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800"
+                          oninput={(e) => {
+                            const input = e.target as HTMLInputElement;
+                            input.value = input.value.replace(/[^0-9.-]/g, '');
+                            subItem.value = input.value;
+                          }}
+                          class="flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800 font-mono"
                         />
                       {:else}
                         <input
@@ -472,7 +496,18 @@
             <div class="flex-1 flex flex-wrap items-center gap-2">
               <span class="text-xs font-bold text-slate-400">WHERE</span>
               <select
-                bind:value={item.field}
+                value={item.field}
+                onchange={(e) => {
+                  const val = (e.target as HTMLSelectElement).value;
+                  item.field = val;
+                  if (val === 'account_id' || val === 'category_id' || val === 'cleared') {
+                    if (!['eq', 'neq'].includes(item.operator)) item.operator = 'eq';
+                  } else if (val === 'raw_payee') {
+                    if (!['contains', 'starts_with', 'eq', 'neq'].includes(item.operator)) item.operator = 'contains';
+                  } else if (val === 'amount_cents' || val === 'date') {
+                    if (!['eq', 'neq', 'gt', 'gte', 'lt', 'lte'].includes(item.operator)) item.operator = 'lt';
+                  }
+                }}
                 class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800"
               >
                 <option value="date">Date</option>
@@ -483,18 +518,27 @@
                 <option value="cleared">Cleared Status</option>
               </select>
 
+              <!-- Restricted Operators Based on Field Type (US-5.9) -->
               <select
                 bind:value={item.operator}
                 class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800"
               >
-                <option value="eq">equals</option>
-                <option value="neq">not equals</option>
-                <option value="contains">contains</option>
-                <option value="starts_with">starts with</option>
-                <option value="gt">greater than (&gt;)</option>
-                <option value="gte">greater or equal (&ge;)</option>
-                <option value="lt">less than (&lt;)</option>
-                <option value="lte">less or equal (&le;)</option>
+                {#if item.field === 'account_id' || item.field === 'category_id' || item.field === 'cleared'}
+                  <option value="eq">equals</option>
+                  <option value="neq">not equals</option>
+                {:else if item.field === 'raw_payee'}
+                  <option value="contains">contains</option>
+                  <option value="starts_with">starts with</option>
+                  <option value="eq">equals</option>
+                  <option value="neq">not equals</option>
+                {:else}
+                  <option value="eq">equals</option>
+                  <option value="neq">not equals</option>
+                  <option value="gt">greater than (&gt;)</option>
+                  <option value="gte">greater or equal (&ge;)</option>
+                  <option value="lt">less than (&lt;)</option>
+                  <option value="lte">less or equal (&le;)</option>
+                {/if}
               </select>
 
               {#if item.field === 'account_id'}
@@ -535,11 +579,16 @@
                 />
               {:else if item.field === 'amount_cents'}
                 <input
-                  type="number"
-                  step="0.01"
+                  type="text"
+                  inputmode="decimal"
                   placeholder="e.g. -50.00"
                   bind:value={item.value}
-                  class="flex-1 min-w-[140px] rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800"
+                  oninput={(e) => {
+                    const input = e.target as HTMLInputElement;
+                    input.value = input.value.replace(/[^0-9.-]/g, '');
+                    item.value = input.value;
+                  }}
+                  class="flex-1 min-w-[140px] rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800 font-mono"
                 />
               {:else}
                 <input
