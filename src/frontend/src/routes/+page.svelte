@@ -6,6 +6,7 @@
     createCategoryGroup,
     createCategory,
     getTransactions,
+    getUncategorizedCount,
     deleteTransaction,
     getRules,
     updateRule,
@@ -42,13 +43,14 @@
   let categoryGroups: CategoryGroup[] = $state([]);
   let transactions: Transaction[] = $state([]);
   let rules: Rule[] = $state([]);
+  let uncategorizedCount: number = $state(0);
 
   let selectedAccountId: string | null = $state(null);
   let includeClosedAccounts = $state(false);
   let loadingTransactions = $state(false);
   let loadingRules = $state(false);
 
-  // Tab View state (Milestones 1–5)
+  // Tab View state (Milestones 1–6)
   let activeTab: 'ledger' | 'budget' | 'rules' | 'reports' | 'query' = $state('ledger');
 
   // Budget state (Milestone 4)
@@ -102,8 +104,18 @@
       await loadTransactions();
       await loadRulesData();
       await loadBudgetGridData();
+      await fetchUncategorizedCount();
     } catch (e) {
       console.error('Failed to load initial data:', e);
+    }
+  }
+
+  async function fetchUncategorizedCount() {
+    try {
+      const res = await getUncategorizedCount();
+      uncategorizedCount = res.count;
+    } catch {
+      uncategorizedCount = 0;
     }
   }
 
@@ -133,6 +145,7 @@
         endDate: currentFilters.endDate || undefined,
         cleared: currentFilters.cleared !== '' ? currentFilters.cleared === 'true' : undefined,
       });
+      await fetchUncategorizedCount();
     } catch (e) {
       console.error('Failed to load transactions:', e);
     } finally {
@@ -227,11 +240,11 @@
     loadTransactions();
   }
 
-  // One-Click ML Category Confirmation (US-3.4)
-  async function handleConfirmCategory(event: CustomEvent<{ transaction: Transaction; categoryId?: string }>) {
-    const { transaction, categoryId } = event.detail;
+  // One-Click & Batch ML Category Confirmation (US-3.4, US-3.8)
+  async function handleConfirmCategory(event: CustomEvent<{ transaction: Transaction; categoryId?: string; batch?: boolean }>) {
+    const { transaction, categoryId, batch } = event.detail;
     try {
-      await confirmCategory(transaction.id, categoryId);
+      await confirmCategory(transaction.id, categoryId, batch);
       await loadTransactions();
       await loadBudgetGridData();
     } catch (e: any) {
@@ -347,11 +360,19 @@
   <!-- Top Action Header (Hidden when printing) -->
   <div class="no-print flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Personal Finance System</h1>
-      <p class="text-xs text-slate-500">
-        Milestones 1–5 Complete &bull; Multi-Account Ledger, Statement Ingestion, Rules Engine, ML Categorization, Envelope Budgeting, Query Builder & Analytics
+      <div class="flex items-center gap-3">
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Personal Finance System</h1>
+        {#if uncategorizedCount > 0}
+          <span class="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-xs font-black text-white shadow-xs" title="US-3.6 Uncategorized Transaction Count">
+            <span>❓</span> {uncategorizedCount} Uncategorized
+          </span>
+        {/if}
+      </div>
+      <p class="text-xs text-slate-500 mt-0.5">
+        Milestones 1–6 Complete &bull; Multi-Account Ledger, Statement Ingestion, Rules Engine, ML Categorization, Envelope Budgeting, Query Builder, Saved Queries & Advanced Category Management
       </p>
     </div>
+
 
     <!-- Mode Tabs & Actions -->
     <div class="flex flex-wrap items-center gap-3">

@@ -4,13 +4,15 @@
     getSpendingByCategory,
     getIncomeVsExpense,
     getNetWorthHistory,
+    getCategoryInitiators,
     type SpendingByCategoryResponse,
     type IncomeVsExpenseResponse,
     type NetWorthResponse,
+    type CategoryInitiatorResponse,
   } from '$lib/api';
   import { formatCents } from '$lib/utils/currency';
 
-  let dateFilter: 'this_month' | 'last_3_months' | 'year_to_date' | 'all' = $state('this_month');
+  let dateFilter: 'this_month' | 'last_3_months' | 'year_to_date' | 'q1' | 'q2' | 'q3' | 'q4' | 'custom' | 'all' = $state('this_month');
   let startDate = $state('');
   let endDate = $state('');
 
@@ -18,6 +20,12 @@
   let incomeVsExpenseData: IncomeVsExpenseResponse | null = $state(null);
   let netWorthData: NetWorthResponse | null = $state(null);
   let loading = $state(false);
+
+  // US-5.7 Category Breakdown State
+  let showInitiatorModal = $state(false);
+  let selectedCategoryName = $state('');
+  let initiatorData: CategoryInitiatorResponse | null = $state(null);
+  let loadingInitiators = $state(false);
 
   // Palette for SVG chart categories
   const categoryColors = [
@@ -29,11 +37,12 @@
     applyPreset('this_month');
   });
 
-  function applyPreset(preset: 'this_month' | 'last_3_months' | 'year_to_date' | 'all') {
+  function applyPreset(preset: 'this_month' | 'last_3_months' | 'year_to_date' | 'q1' | 'q2' | 'q3' | 'q4' | 'all') {
     dateFilter = preset;
     const now = new Date();
+    const year = now.getFullYear();
+
     if (preset === 'this_month') {
-      const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, '0');
       startDate = `${year}-${month}-01`;
       endDate = '';
@@ -43,12 +52,29 @@
       startDate = past.toISOString().slice(0, 10);
       endDate = '';
     } else if (preset === 'year_to_date') {
-      startDate = `${now.getFullYear()}-01-01`;
+      startDate = `${year}-01-01`;
       endDate = '';
+    } else if (preset === 'q1') {
+      startDate = `${year}-01-01`;
+      endDate = `${year}-03-31`;
+    } else if (preset === 'q2') {
+      startDate = `${year}-04-01`;
+      endDate = `${year}-06-30`;
+    } else if (preset === 'q3') {
+      startDate = `${year}-07-01`;
+      endDate = `${year}-09-30`;
+    } else if (preset === 'q4') {
+      startDate = `${year}-10-01`;
+      endDate = `${year}-12-31`;
     } else {
       startDate = '';
       endDate = '';
     }
+    loadReportsData();
+  }
+
+  function handleCustomDateChange() {
+    dateFilter = 'custom';
     loadReportsData();
   }
 
@@ -70,6 +96,20 @@
     }
   }
 
+  async function openInitiatorBreakdown(catId: string, catName: string) {
+    selectedCategoryName = catName;
+    showInitiatorModal = true;
+    loadingInitiators = true;
+    try {
+      initiatorData = await getCategoryInitiators(catId, startDate || undefined, endDate || undefined);
+    } catch (e) {
+      console.error('Failed to load initiator breakdown:', e);
+      initiatorData = null;
+    } finally {
+      loadingInitiators = false;
+    }
+  }
+
   function handlePrint() {
     window.print();
   }
@@ -83,39 +123,86 @@
 
 <div class="space-y-6">
   <!-- Top Action & Filter Bar (Hidden when printing) -->
-  <div class="no-print bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-    <!-- Date Range Quick Presets -->
-    <div class="flex flex-wrap items-center gap-2">
+  <div class="no-print bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
+    <!-- Date Range Quick Presets & Custom Selector (US-5.8) -->
+    <div class="flex flex-wrap items-center gap-3">
       <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Period:</span>
-      <div class="inline-flex rounded-xl bg-slate-100 p-1 text-xs font-bold">
+      
+      <div class="inline-flex flex-wrap rounded-xl bg-slate-100 p-1 text-xs font-bold gap-0.5">
         <button
           type="button"
           onclick={() => applyPreset('this_month')}
-          class={`px-3 py-1 rounded-lg transition ${dateFilter === 'this_month' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+          class={`px-2.5 py-1 rounded-lg transition ${dateFilter === 'this_month' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
         >
           This Month
         </button>
         <button
           type="button"
           onclick={() => applyPreset('last_3_months')}
-          class={`px-3 py-1 rounded-lg transition ${dateFilter === 'last_3_months' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+          class={`px-2.5 py-1 rounded-lg transition ${dateFilter === 'last_3_months' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
         >
-          Last 3 Months
+          3 Months
         </button>
         <button
           type="button"
           onclick={() => applyPreset('year_to_date')}
-          class={`px-3 py-1 rounded-lg transition ${dateFilter === 'year_to_date' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+          class={`px-2.5 py-1 rounded-lg transition ${dateFilter === 'year_to_date' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
         >
-          Year to Date
+          YTD
+        </button>
+        <button
+          type="button"
+          onclick={() => applyPreset('q1')}
+          class={`px-2 py-1 rounded-lg transition ${dateFilter === 'q1' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+        >
+          Q1
+        </button>
+        <button
+          type="button"
+          onclick={() => applyPreset('q2')}
+          class={`px-2 py-1 rounded-lg transition ${dateFilter === 'q2' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+        >
+          Q2
+        </button>
+        <button
+          type="button"
+          onclick={() => applyPreset('q3')}
+          class={`px-2 py-1 rounded-lg transition ${dateFilter === 'q3' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+        >
+          Q3
+        </button>
+        <button
+          type="button"
+          onclick={() => applyPreset('q4')}
+          class={`px-2 py-1 rounded-lg transition ${dateFilter === 'q4' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+        >
+          Q4
         </button>
         <button
           type="button"
           onclick={() => applyPreset('all')}
-          class={`px-3 py-1 rounded-lg transition ${dateFilter === 'all' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+          class={`px-2.5 py-1 rounded-lg transition ${dateFilter === 'all' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
         >
           All Time
         </button>
+      </div>
+
+      <!-- US-5.8 Custom Date Inputs -->
+      <div class="flex items-center gap-1.5 text-xs">
+        <span class="font-bold text-slate-400">From:</span>
+        <input
+          type="date"
+          bind:value={startDate}
+          onchange={handleCustomDateChange}
+          class="rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-800"
+        />
+        <span class="font-bold text-slate-400">To:</span>
+        <input
+          type="date"
+          bind:value={endDate}
+          onchange={handleCustomDateChange}
+          class="rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-800"
+        />
       </div>
     </div>
 
@@ -199,19 +286,25 @@
         {:else}
           <div class="space-y-3">
             {#each spendingData.categories.slice(0, 8) as cat, idx}
-              <div class="space-y-1 text-xs">
+              <button
+                type="button"
+                onclick={() => openInitiatorBreakdown(cat.category_id, cat.category_name)}
+                class="w-full text-left space-y-1 text-xs p-2 rounded-xl hover:bg-slate-50 transition border border-transparent hover:border-slate-200 group"
+                title="Click to view category breakdown by transaction initiator"
+              >
                 <div class="flex items-center justify-between font-bold text-slate-800">
                   <div class="flex items-center gap-2">
                     <span
                       class="h-3 w-3 rounded-full shrink-0"
                       style="background-color: {categoryColors[idx % categoryColors.length]}"
                     ></span>
-                    <span>{cat.category_name}</span>
+                    <span class="group-hover:text-indigo-600 group-hover:underline">{cat.category_name}</span>
                     <span class="text-[10px] font-semibold text-slate-400">({cat.group_name})</span>
                   </div>
                   <div class="flex items-center gap-2">
                     <span>{formatCents(cat.total_cents)}</span>
                     <span class="text-slate-400 font-mono text-[10px]">({cat.percentage}%)</span>
+                    <span class="text-[10px] font-extrabold text-indigo-500 opacity-0 group-hover:opacity-100 transition">🔍 Initiators</span>
                   </div>
                 </div>
                 <!-- SVG Progress Bar -->
@@ -221,7 +314,7 @@
                     style="width: {cat.percentage}%; background-color: {categoryColors[idx % categoryColors.length]}"
                   ></div>
                 </div>
-              </div>
+              </button>
             {/each}
           </div>
         {/if}
@@ -301,4 +394,76 @@
       </div>
     {/if}
   {/if}
+
+  <!-- US-5.7 Initiator Breakdown Modal -->
+  {#if showInitiatorModal}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 no-print">
+      <div class="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between border-b pb-3">
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">Initiator Breakdown: {selectedCategoryName}</h3>
+            <p class="text-xs text-slate-500">Proportion of category spending attributed to each merchant/payee (US-5.7)</p>
+          </div>
+          <button
+            type="button"
+            onclick={() => (showInitiatorModal = false)}
+            class="text-slate-400 hover:text-slate-600 text-2xl font-bold px-2"
+          >
+            &times;
+          </button>
+        </div>
+
+        {#if loadingInitiators}
+          <div class="p-8 text-center text-slate-500 text-xs font-semibold">
+            Loading initiator breakdown data...
+          </div>
+        {:else if !initiatorData || initiatorData.initiators.length === 0}
+          <div class="p-8 text-center text-slate-400 text-xs font-semibold">
+            No transactions found for this category in the selected period.
+          </div>
+        {:else}
+          <div class="space-y-4">
+            <div class="p-3 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center justify-between text-xs font-bold text-indigo-950">
+              <span>Total Spent in Category:</span>
+              <span class="text-sm font-black">{formatCents(initiatorData.total_expense_cents)}</span>
+            </div>
+
+            <div class="space-y-3">
+              {#each initiatorData.initiators as item, idx}
+                <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-1.5">
+                  <div class="flex items-center justify-between font-bold text-xs text-slate-900">
+                    <span class="truncate max-w-[240px]">{item.payee}</span>
+                    <div class="flex items-center gap-2">
+                      <span>{formatCents(item.total_cents)}</span>
+                      <span class="text-slate-400 text-[10px]">({item.percentage}%)</span>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between text-[10px] text-slate-500 font-semibold">
+                    <span>{item.transaction_count} transaction{item.transaction_count === 1 ? '' : 's'}</span>
+                  </div>
+                  <div class="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      class="h-full bg-indigo-600 rounded-full transition-all duration-300"
+                      style="width: {item.percentage}%"
+                    ></div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
+        <div class="flex justify-end pt-2">
+          <button
+            type="button"
+            onclick={() => (showInitiatorModal = false)}
+            class="rounded-xl border border-slate-300 bg-white px-4 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
+

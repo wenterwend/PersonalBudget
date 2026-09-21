@@ -1,5 +1,6 @@
 import csv
 import io
+import uuid
 from typing import Dict, Any, List, Optional
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
@@ -311,3 +312,81 @@ def get_net_worth_summary(
         "total_liabilities_cents": total_liabilities_cents,
         "accounts": account_summaries,
     }
+
+
+@router.get("/category-initiators")
+def get_category_initiator_breakdown(
+    category_id: str = Query(..., description="Category ID or 'uncategorized'"),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    session: Session = Depends(get_session),
+):
+    """
+    Returns category breakdown by transaction initiator (raw/normalized payee) (US-5.7).
+    """
+    query = select(Transaction)
+    if start_date:
+        query = query.where(Transaction.date >= date.fromisoformat(start_date))
+    if end_date:
+        query = query.where(Transaction.date <= date.fromisoformat(end_date))
+
+    transactions = session.exec(query).all()
+
+    initiator_totals: Dict[str, Dict[str, Any]] = {}
+    total_category_expense_cents = 0
+
+    for tx in transactions:
+        splits = session.exec(
+            select(TransactionSplit).where(TransactionSplit.transaction_id == tx.id)
+        ).all()
+
+        for s in splits:
+            is_match = False
+            if category_id == "uncategorized":
+                if s.category_id is None:
+                    is_match = True
+            else:
+                if s.category_id and str(s.category_id) == category_id:
+                    is_match = True
+
+            if is_match:
+                abs_amount = abs(s.amount_cents)
+                total_category_expense_cents += abs_amount
+
+                initiator = tx.normalized_payee or tx.raw_payee or "Unknown Initiator"
+                if initiator not in initiator_totals:
+                    initiator_totals[initiator] = {
+                        "payee": initiator,
+                        "total_cents": 0,
+                        "transaction_count": 0,
+                    }
+                initiator_totals[initiator]["total_cents"] += abs_amount
+                initiator_totals[initiator]["transaction_count"] += 1
+
+    initiators = list(initiator_totals.values())
+    initiators.sort(key=lambda x: x["total_cents"], reverse=True)
+
+    for item in initiators:
+        item["percentage"] = (
+            round((item["total_cents"] / total_category_expense_cents * 100), 1)
+            if total_category_expense_cents > 0
+            else 0.0
+        )
+
+    cat_name = "Uncategorized"
+    if category_id != "uncategorized":
+        try:
+            cat_uuid = uuid.UUID(category_id)
+            cat = session.get(Category, cat_uuid)
+            if cat:
+                cat_name = cat.name
+        except ValueError:
+            pass
+
+    return {
+        "category_id": category_id,
+        "category_name": cat_name,
+        "total_expense_cents": total_category_expense_cents,
+        "initiators": initiators,
+    }
+

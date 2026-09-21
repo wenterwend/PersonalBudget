@@ -23,8 +23,19 @@ if DATABASE_URL.startswith("sqlite"):
         cursor.execute("PRAGMA busy_timeout=5000;")
         cursor.close()
 
+def backup_database_if_exists():
+    if DATABASE_URL.startswith("sqlite:///"):
+        db_path = DATABASE_URL.replace("sqlite:///", "")
+        if os.path.exists(db_path) and os.path.getsize(db_path) > 0:
+            import shutil, datetime
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = f"{db_path}.bak_{timestamp}"
+            shutil.copy2(db_path, backup_path)
+
 def init_db():
+    backup_database_if_exists()
     SQLModel.metadata.create_all(engine)
+
 
     # Light schema migration for SQLite databases
     if DATABASE_URL.startswith("sqlite"):

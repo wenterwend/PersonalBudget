@@ -58,6 +58,13 @@ def build_sqlalchemy_criterion(ast_node: Dict[str, Any]):
     if field_name == "cleared" and isinstance(val, str):
         val = val.lower() == "true"
 
+    # Support 'uncategorized' for category_id
+    if field_name == "category_id" and (val in ("uncategorized", "Uncategorized", None, "") or op in ("is_null", "is_uncategorized")):
+        if op in ("eq", "is_null", "is_uncategorized"):
+            return column == None
+        elif op in ("neq", "is_not_null"):
+            return column != None
+
     if op == "eq":
         return column == val
     elif op == "neq":
@@ -74,8 +81,13 @@ def build_sqlalchemy_criterion(ast_node: Dict[str, Any]):
         return column.ilike(f"%{val}%")
     elif op == "starts_with":
         return column.ilike(f"{val}%")
+    elif op == "is_null":
+        return column == None
+    elif op == "is_not_null":
+        return column != None
     else:
         raise ValueError(f"Unsupported comparison operator: {op}")
+
 
 
 def execute_ast_query(session: Session, ast_root: Dict[str, Any]) -> List[Transaction]:

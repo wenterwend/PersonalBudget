@@ -1,12 +1,12 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select
+from sqlmodel import Session, select, or_
 from pydantic import BaseModel
 import uuid
 
 from ..database import get_session
 from ..models import Rule, MatchField, MatchType, AmountCondition, Category
-from ..services.rule_engine import apply_rules_retroactively
+from ..services.rule_engine import apply_rules_retroactively, preview_rule_matches
 
 router = APIRouter(prefix="/api/rules", tags=["Rules"])
 
@@ -51,9 +51,33 @@ class RuleResponse(BaseModel):
     target_category_name: Optional[str]
     is_active: bool
 
+class RulePreviewResponse(BaseModel):
+    match_count: int
+    sample_matches: List[dict]
+
 @router.get("", response_model=List[RuleResponse])
-def list_rules(session: Session = Depends(get_session)):
-    rules = session.exec(select(Rule).order_by(Rule.priority, Rule.match_value)).all()
+def list_rules(
+    q: Optional[str] = Query(None, description="Search term for match_value, target_payee, or secondary_match_value"),
+    category_id: Optional[uuid.UUID] = Query(None, description="Filter rules targeting specific category ID"),
+    match_field: Optional[MatchField] = Query(None, description="Filter rules by match field"),
+    session: Session = Depends(get_session)
+):
+    query = select(Rule)
+    if q and q.strip():
+        term = f"%{q.strip()}%"
+        query = query.where(
+            or_(
+                Rule.match_value.ilike(term),
+                Rule.target_payee.ilike(term),
+                Rule.secondary_match_value.ilike(term)
+            )
+        )
+    if category_id:
+        query = query.where(Rule.target_category_id == category_id)
+    if match_field:
+        query = query.where(Rule.match_field == match_field)
+
+    rules = session.exec(query.order_by(Rule.priority, Rule.match_value)).all()
     categories = {c.id: c.name for c in session.exec(select(Category)).all()}
     
     return [
@@ -73,6 +97,37 @@ def list_rules(session: Session = Depends(get_session)):
             is_active=r.is_active
         ) for r in rules
     ]
+
+@router.post("/preview", response_model=RulePreviewResponse)
+def preview_rule(
+    req: RuleCreateRequest,
+    session: Session = Depends(get_session)
+):
+    temp_rule = Rule(
+        priority=req.priority,
+        match_field=req.match_field,
+        match_type=req.match_type,
+        match_value=req.match_value.strip(),
+        amount_condition=req.amount_condition,
+        secondary_match_field=req.secondary_match_field,
+        secondary_match_type=req.secondary_match_type,
+        secondary_match_value=req.secondary_match_value.strip() if req.secondary_match_value else None,
+        target_payee=req.target_payee.strip() if req.target_payee else None,
+        target_category_id=req.target_category_id,
+        is_active=True
+    )
+    count, samples = preview_rule_matches(temp_rule, session, limit=10)
+    sample_dicts = [
+        {
+            "id": str(tx.id),
+            "date": tx.date.isoformat(),
+            "raw_payee": tx.raw_payee,
+            "amount_cents": tx.amount_cents,
+            "notes": tx.notes
+        } for tx in samples
+    ]
+    return RulePreviewResponse(match_count=count, sample_matches=sample_dicts)
+
 
 @router.post("", response_model=RuleResponse, status_code=201)
 def create_rule(

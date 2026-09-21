@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import type { Rule, RuleCreate, CategoryGroup } from '$lib/api';
-  import { createRule, updateRule } from '$lib/api';
+  import { createRule, updateRule, previewRule } from '$lib/api';
 
   let {
     show = false,
@@ -32,6 +32,46 @@
 
   let error: string | null = $state(null);
   let loading = $state(false);
+
+  let previewMatchCount: number | null = $state(null);
+  let previewSamples: any[] = $state([]);
+  let previewLoading = $state(false);
+
+  $effect(() => {
+    if (show && matchValue.trim().length >= 2) {
+      fetchPreview();
+    } else {
+      previewMatchCount = null;
+      previewSamples = [];
+    }
+  });
+
+  async function fetchPreview() {
+    if (!matchValue.trim()) return;
+    previewLoading = true;
+    try {
+      const res = await previewRule({
+        priority,
+        match_field: matchField,
+        match_type: matchType,
+        match_value: matchValue.trim(),
+        amount_condition: amountCondition,
+        secondary_match_field: enableSecondary && secondaryMatchValue.trim() ? secondaryMatchField : null,
+        secondary_match_type: enableSecondary && secondaryMatchValue.trim() ? secondaryMatchType : null,
+        secondary_match_value: enableSecondary && secondaryMatchValue.trim() ? secondaryMatchValue.trim() : null,
+        target_payee: targetPayee.trim() || undefined,
+        target_category_id: targetCategoryId || undefined,
+        is_active: true
+      });
+      previewMatchCount = res.match_count;
+      previewSamples = res.sample_matches;
+    } catch {
+      previewMatchCount = null;
+      previewSamples = [];
+    } finally {
+      previewLoading = false;
+    }
+  }
 
   $effect(() => {
     if (show) {
@@ -289,6 +329,33 @@
           </div>
         </div>
 
+        <!-- Rule Matching Preview & Count (US-3.7) -->
+        <div class="p-3 rounded-lg bg-indigo-50/80 border border-indigo-200">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-indigo-900">Rule Match Preview (US-3.7):</span>
+            {#if previewLoading}
+              <span class="text-xs text-indigo-600 font-semibold animate-pulse">Checking matches...</span>
+            {:else if previewMatchCount !== null}
+              <span class="text-xs font-bold px-2 py-0.5 rounded bg-indigo-200 text-indigo-900">
+                Matches {previewMatchCount} existing transaction{previewMatchCount === 1 ? '' : 's'}
+              </span>
+            {:else}
+              <span class="text-xs text-slate-400 italic">Enter pattern to preview matches</span>
+            {/if}
+          </div>
+
+          {#if previewSamples.length > 0}
+            <div class="mt-2 text-[11px] space-y-1 max-h-24 overflow-y-auto font-mono text-slate-700 bg-white p-2 rounded border border-indigo-100">
+              {#each previewSamples as sample (sample.id)}
+                <div class="flex items-center justify-between border-b border-slate-100 pb-0.5">
+                  <span class="truncate font-semibold">{sample.raw_payee}</span>
+                  <span class="ml-2 font-bold text-slate-500">${(Math.abs(sample.amount_cents) / 100).toFixed(2)}</span>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+
         <div class="grid grid-cols-2 gap-4 pt-1">
           <div>
             <label for="priority-input" class="block text-xs font-semibold text-slate-600 uppercase">Execution Priority</label>
@@ -347,3 +414,4 @@
     </div>
   </div>
 {/if}
+

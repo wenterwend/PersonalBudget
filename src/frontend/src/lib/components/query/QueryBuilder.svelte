@@ -2,6 +2,10 @@
   import {
     runASTQuery,
     downloadQueryCSV,
+    getSavedQueries,
+    createSavedQuery,
+    deleteSavedQuery,
+    type SavedQuery,
     type QueryGroup,
     type QueryRule,
     type QueryResult,
@@ -30,6 +34,70 @@
   let loading = $state(false);
   let exporting = $state(false);
   let error: string | null = $state(null);
+
+  // US-5.5 Saved Queries State
+  let savedQueries: SavedQuery[] = $state([]);
+  let selectedSavedQueryId: string = $state('');
+  let showSaveModal: boolean = $state(false);
+  let newQueryName: string = $state('');
+  let newQueryDescription: string = $state('');
+  let savingQuery: boolean = $state(false);
+
+  $effect(() => {
+    loadSavedQueries();
+  });
+
+  async function loadSavedQueries() {
+    try {
+      savedQueries = await getSavedQueries();
+    } catch {
+      savedQueries = [];
+    }
+  }
+
+  function handleSelectSavedQuery(id: string) {
+    selectedSavedQueryId = id;
+    const found = savedQueries.find((q) => q.id === id);
+    if (found && found.query_ast) {
+      ast = found.query_ast;
+    }
+  }
+
+  async function handleSaveNewQuery() {
+    if (!newQueryName.trim()) {
+      error = 'Saved query name is required.';
+      return;
+    }
+    savingQuery = true;
+    error = null;
+    try {
+      const processedAST = prepareASTForSubmit(ast);
+      await createSavedQuery({
+        name: newQueryName.trim(),
+        description: newQueryDescription.trim() || undefined,
+        query_ast: processedAST,
+      });
+      await loadSavedQueries();
+      showSaveModal = false;
+      newQueryName = '';
+      newQueryDescription = '';
+    } catch (e: any) {
+      error = e.message || 'Failed to save query.';
+    } finally {
+      savingQuery = false;
+    }
+  }
+
+  async function handleDeleteSavedQuery(id: string) {
+    if (!confirm('Are you sure you want to delete this saved query?')) return;
+    try {
+      await deleteSavedQuery(id);
+      if (selectedSavedQueryId === id) selectedSavedQueryId = '';
+      await loadSavedQueries();
+    } catch (e: any) {
+      error = e.message || 'Failed to delete saved query.';
+    }
+  }
 
   // Extract all categories from groups for category dropdown
   let allCategories = $derived.by(() => {
@@ -67,7 +135,6 @@
     loading = true;
     error = null;
     try {
-      // Process rule values before submitting (convert dollar inputs for amount_cents)
       const processedAST = prepareASTForSubmit(ast);
       queryResult = await runASTQuery(processedAST);
     } catch (e: any) {
@@ -100,7 +167,6 @@
       const rule = node as QueryRule;
       let val = rule.value;
       if (rule.field === 'amount_cents' && typeof val === 'number') {
-        // If user entered dollars in UI, convert to cents
         val = Math.round(val * 100);
       }
       return {
@@ -113,8 +179,8 @@
 </script>
 
 <div class="space-y-6">
-  <!-- Top Header & Instructions -->
-  <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+  <!-- Top Header & Saved Queries Toolbar (US-5.5) -->
+  <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
     <div>
       <h2 class="text-xl font-extrabold text-slate-900 tracking-tight">Visual Query Builder</h2>
       <p class="text-xs text-slate-500 mt-1">
@@ -122,7 +188,43 @@
       </p>
     </div>
 
-    <div class="flex items-center gap-3">
+    <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+      <!-- Saved Queries Selector (US-5.5) -->
+      {#if savedQueries.length > 0}
+        <div class="flex items-center gap-1.5 text-xs">
+          <label for="saved-query-select" class="font-bold text-slate-600">Saved Queries:</label>
+          <select
+            id="saved-query-select"
+            bind:value={selectedSavedQueryId}
+            onchange={(e) => handleSelectSavedQuery((e.target as HTMLSelectElement).value)}
+            class="rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-indigo-700 focus:outline-none"
+          >
+            <option value="">-- Load Saved Query --</option>
+            {#each savedQueries as q (q.id)}
+              <option value={q.id}>{q.name}</option>
+            {/each}
+          </select>
+          {#if selectedSavedQueryId}
+            <button
+              type="button"
+              onclick={() => handleDeleteSavedQuery(selectedSavedQueryId)}
+              class="text-rose-600 font-bold hover:underline text-xs"
+              title="Delete this saved query"
+            >
+              Delete
+            </button>
+          {/if}
+        </div>
+      {/if}
+
+      <button
+        type="button"
+        onclick={() => (showSaveModal = true)}
+        class="inline-flex items-center gap-1 rounded-xl border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition"
+      >
+        <span>💾 Save Query</span>
+      </button>
+
       <button
         type="button"
         onclick={handleRunQuery}
@@ -136,7 +238,7 @@
         type="button"
         onclick={handleExportCSV}
         disabled={exporting}
-        class="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+        class="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition"
       >
         <span>📥 Export CSV</span>
       </button>
@@ -146,6 +248,57 @@
   {#if error}
     <div class="p-4 rounded-xl bg-red-50 text-red-700 text-xs font-semibold border border-red-200">
       {error}
+    </div>
+  {/if}
+
+  <!-- Save Query Modal (US-5.5) -->
+  {#if showSaveModal}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+          <h3 class="text-lg font-bold text-slate-900">Save Query (US-5.5)</h3>
+          <button type="button" onclick={() => (showSaveModal = false)} class="text-slate-400 text-xl font-bold">&times;</button>
+        </div>
+        <form onsubmit={(e) => { e.preventDefault(); handleSaveNewQuery(); }} class="mt-4 space-y-3">
+          <div>
+            <label for="save-query-name" class="block text-xs font-bold text-slate-700">Query Name *</label>
+            <input
+              id="save-query-name"
+              type="text"
+              bind:value={newQueryName}
+              placeholder="e.g. Uncategorized Expenses Over $50"
+              required
+              class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-800"
+            />
+          </div>
+          <div>
+            <label for="save-query-desc" class="block text-xs font-bold text-slate-700">Description (Optional)</label>
+            <input
+              id="save-query-desc"
+              type="text"
+              bind:value={newQueryDescription}
+              placeholder="e.g. For weekly budget review"
+              class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-800"
+            />
+          </div>
+          <div class="flex justify-end gap-2 pt-3">
+            <button
+              type="button"
+              onclick={() => (showSaveModal = false)}
+              class="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={savingQuery}
+              class="rounded-xl bg-indigo-600 px-4 py-1.5 text-xs font-bold text-white shadow hover:bg-indigo-700"
+            >
+              {savingQuery ? 'Saving...' : 'Save Query'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   {/if}
 
@@ -224,7 +377,18 @@
                     <div class="flex items-center gap-2">
                       <!-- Field -->
                       <select
-                        bind:value={subItem.field}
+                        value={subItem.field}
+                        onchange={(e) => {
+                          const val = (e.target as HTMLSelectElement).value;
+                          subItem.field = val;
+                          if (val === 'account_id' || val === 'category_id' || val === 'cleared') {
+                            if (!['eq', 'neq'].includes(subItem.operator)) subItem.operator = 'eq';
+                          } else if (val === 'raw_payee') {
+                            if (!['contains', 'starts_with', 'eq', 'neq'].includes(subItem.operator)) subItem.operator = 'contains';
+                          } else if (val === 'amount_cents' || val === 'date') {
+                            if (!['eq', 'neq', 'gt', 'gte', 'lt', 'lte'].includes(subItem.operator)) subItem.operator = 'lt';
+                          }
+                        }}
                         class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800"
                       >
                         <option value="date">Date</option>
@@ -240,14 +404,22 @@
                         bind:value={subItem.operator}
                         class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800"
                       >
-                        <option value="eq">equals</option>
-                        <option value="neq">not equals</option>
-                        <option value="contains">contains</option>
-                        <option value="starts_with">starts with</option>
-                        <option value="gt">greater than (&gt;)</option>
-                        <option value="gte">greater or equal (&ge;)</option>
-                        <option value="lt">less than (&lt;)</option>
-                        <option value="lte">less or equal (&le;)</option>
+                        {#if subItem.field === 'account_id' || subItem.field === 'category_id' || subItem.field === 'cleared'}
+                          <option value="eq">equals</option>
+                          <option value="neq">not equals</option>
+                        {:else if subItem.field === 'raw_payee'}
+                          <option value="contains">contains</option>
+                          <option value="starts_with">starts with</option>
+                          <option value="eq">equals</option>
+                          <option value="neq">not equals</option>
+                        {:else}
+                          <option value="eq">equals</option>
+                          <option value="neq">not equals</option>
+                          <option value="gt">greater than (&gt;)</option>
+                          <option value="gte">greater or equal (&ge;)</option>
+                          <option value="lt">less than (&lt;)</option>
+                          <option value="lte">less or equal (&le;)</option>
+                        {/if}
                       </select>
 
                       <!-- Value Input -->
@@ -261,10 +433,12 @@
                           {/each}
                         </select>
                       {:else if subItem.field === 'category_id'}
+                        <!-- US-5.6 Uncategorized Option -->
                         <select
                           bind:value={subItem.value}
                           class="flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800"
                         >
+                          <option value="uncategorized">❓ Uncategorized (No Category Assigned)</option>
                           {#each allCategories as cat}
                             <option value={cat.id}>{cat.groupName} &bull; {cat.name}</option>
                           {/each}
@@ -285,11 +459,16 @@
                         />
                       {:else if subItem.field === 'amount_cents'}
                         <input
-                          type="number"
-                          step="0.01"
+                          type="text"
+                          inputmode="decimal"
                           placeholder="e.g. -50.00"
                           bind:value={subItem.value}
-                          class="flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800"
+                          oninput={(e) => {
+                            const input = e.target as HTMLInputElement;
+                            input.value = input.value.replace(/[^0-9.-]/g, '');
+                            subItem.value = input.value;
+                          }}
+                          class="flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800 font-mono"
                         />
                       {:else}
                         <input
@@ -317,7 +496,18 @@
             <div class="flex-1 flex flex-wrap items-center gap-2">
               <span class="text-xs font-bold text-slate-400">WHERE</span>
               <select
-                bind:value={item.field}
+                value={item.field}
+                onchange={(e) => {
+                  const val = (e.target as HTMLSelectElement).value;
+                  item.field = val;
+                  if (val === 'account_id' || val === 'category_id' || val === 'cleared') {
+                    if (!['eq', 'neq'].includes(item.operator)) item.operator = 'eq';
+                  } else if (val === 'raw_payee') {
+                    if (!['contains', 'starts_with', 'eq', 'neq'].includes(item.operator)) item.operator = 'contains';
+                  } else if (val === 'amount_cents' || val === 'date') {
+                    if (!['eq', 'neq', 'gt', 'gte', 'lt', 'lte'].includes(item.operator)) item.operator = 'lt';
+                  }
+                }}
                 class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800"
               >
                 <option value="date">Date</option>
@@ -328,18 +518,27 @@
                 <option value="cleared">Cleared Status</option>
               </select>
 
+              <!-- Restricted Operators Based on Field Type (US-5.9) -->
               <select
                 bind:value={item.operator}
                 class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800"
               >
-                <option value="eq">equals</option>
-                <option value="neq">not equals</option>
-                <option value="contains">contains</option>
-                <option value="starts_with">starts with</option>
-                <option value="gt">greater than (&gt;)</option>
-                <option value="gte">greater or equal (&ge;)</option>
-                <option value="lt">less than (&lt;)</option>
-                <option value="lte">less or equal (&le;)</option>
+                {#if item.field === 'account_id' || item.field === 'category_id' || item.field === 'cleared'}
+                  <option value="eq">equals</option>
+                  <option value="neq">not equals</option>
+                {:else if item.field === 'raw_payee'}
+                  <option value="contains">contains</option>
+                  <option value="starts_with">starts with</option>
+                  <option value="eq">equals</option>
+                  <option value="neq">not equals</option>
+                {:else}
+                  <option value="eq">equals</option>
+                  <option value="neq">not equals</option>
+                  <option value="gt">greater than (&gt;)</option>
+                  <option value="gte">greater or equal (&ge;)</option>
+                  <option value="lt">less than (&lt;)</option>
+                  <option value="lte">less or equal (&le;)</option>
+                {/if}
               </select>
 
               {#if item.field === 'account_id'}
@@ -353,11 +552,13 @@
                   {/each}
                 </select>
               {:else if item.field === 'category_id'}
+                <!-- US-5.6 Uncategorized Option -->
                 <select
                   bind:value={item.value}
                   class="flex-1 min-w-[150px] rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800"
                 >
                   <option value="">Select Category</option>
+                  <option value="uncategorized">❓ Uncategorized (No Category Assigned)</option>
                   {#each allCategories as cat}
                     <option value={cat.id}>{cat.groupName} &bull; {cat.name}</option>
                   {/each}
@@ -378,11 +579,16 @@
                 />
               {:else if item.field === 'amount_cents'}
                 <input
-                  type="number"
-                  step="0.01"
+                  type="text"
+                  inputmode="decimal"
                   placeholder="e.g. -50.00"
                   bind:value={item.value}
-                  class="flex-1 min-w-[140px] rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800"
+                  oninput={(e) => {
+                    const input = e.target as HTMLInputElement;
+                    input.value = input.value.replace(/[^0-9.-]/g, '');
+                    item.value = input.value;
+                  }}
+                  class="flex-1 min-w-[140px] rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800 font-mono"
                 />
               {:else}
                 <input
@@ -477,3 +683,4 @@
     </div>
   {/if}
 </div>
+

@@ -229,7 +229,18 @@ def create_transaction(
         ]
     )
 
+@router.get("/uncategorized-count")
+def get_uncategorized_count(session: Session = Depends(get_session)):
+    statement = (
+        select(func.count(func.distinct(Transaction.id)))
+        .outerjoin(TransactionSplit, Transaction.id == TransactionSplit.transaction_id)
+        .where(or_(TransactionSplit.category_id == None, TransactionSplit.id == None))
+    )
+    count = session.exec(statement).one()
+    return {"count": count}
+
 @router.get("/{transaction_id}", response_model=TransactionResponse)
+
 def get_transaction(
     transaction_id: uuid.UUID,
     session: Session = Depends(get_session)
@@ -381,6 +392,7 @@ def update_transaction(
 def confirm_category(
     transaction_id: uuid.UUID,
     req: Optional[ConfirmCategoryRequest] = None,
+    batch: bool = Query(False, description="If true, update all similar transactions with matching payee"),
     session: Session = Depends(get_session)
 ):
     tx = session.get(Transaction, transaction_id)
@@ -389,6 +401,8 @@ def confirm_category(
 
     splits = session.exec(select(TransactionSplit).where(TransactionSplit.transaction_id == tx.id)).all()
     
+    target_category_id = req.category_id if req and req.category_id else (splits[0].category_id if splits else None)
+
     if req and req.category_id:
         cat = session.get(Category, req.category_id)
         if not cat:
@@ -401,6 +415,27 @@ def confirm_category(
     tx.is_ml_suggested = False
     tx.ml_confidence = None
     session.add(tx)
+
+    # US-3.8: Batch Category Confirmation for Similar Transactions
+    if batch and target_category_id and tx.raw_payee:
+        similar_txs = session.exec(
+            select(Transaction).where(
+                or_(
+                    Transaction.raw_payee == tx.raw_payee,
+                    Transaction.normalized_payee == tx.raw_payee
+                )
+            )
+        ).all()
+
+        for s_tx in similar_txs:
+            s_splits = session.exec(select(TransactionSplit).where(TransactionSplit.transaction_id == s_tx.id)).all()
+            if s_splits:
+                s_splits[0].category_id = target_category_id
+                session.add(s_splits[0])
+            s_tx.is_ml_suggested = False
+            s_tx.ml_confidence = None
+            session.add(s_tx)
+
     session.commit()
     session.refresh(tx)
 
@@ -408,6 +443,7 @@ def confirm_category(
     ml_categorizer.train(session)
 
     return get_transaction(tx.id, session=session)
+
 
 @router.get("/{transaction_id}/suggestions")
 def get_transaction_suggestions(

@@ -16,7 +16,7 @@
   const dispatch = createEventDispatcher<{
     edit: Transaction;
     delete: Transaction;
-    confirmCategory: { transaction: Transaction; categoryId?: string };
+    confirmCategory: { transaction: Transaction; categoryId?: string; batch?: boolean };
     filterChange: { search: string; startDate: string; endDate: string; cleared: string };
   }>();
 
@@ -46,8 +46,8 @@
     });
   }
 
-  function handleConfirm(tx: Transaction, categoryId?: string) {
-    dispatch('confirmCategory', { transaction: tx, categoryId });
+  function handleConfirm(tx: Transaction, categoryId?: string, batch = false) {
+    dispatch('confirmCategory', { transaction: tx, categoryId, batch });
   }
 
   let totalSumCents = $derived(transactions.reduce((sum, tx) => sum + tx.amount_cents, 0));
@@ -174,8 +174,8 @@
                     <span class="text-[9px]">{expandedTxIds.has(tx.id) ? '▲' : '▼'}</span>
                   </button>
                 {:else if tx.is_ml_suggested}
-                  <!-- ML Suggested Category Badge + One-Click Confirm Button -->
-                  <div class="flex items-center gap-2">
+                  <!-- ML Suggested Category Badge + One-Click & Batch Confirm Buttons (US-3.4, US-3.8) -->
+                  <div class="flex flex-wrap items-center gap-1.5">
                     <span
                       class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200"
                       title={`Machine learning prediction confidence: ${Math.round((tx.ml_confidence || 0) * 100)}%`}
@@ -186,11 +186,20 @@
 
                     <button
                       type="button"
-                      onclick={() => handleConfirm(tx)}
+                      onclick={() => handleConfirm(tx, undefined, false)}
                       title="Confirm ML Category Suggestion (US-3.4)"
                       class="inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-[11px] font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition shadow-sm"
                     >
                       Confirm ✓
+                    </button>
+
+                    <button
+                      type="button"
+                      onclick={() => handleConfirm(tx, undefined, true)}
+                      title="Confirm category for ALL similar transactions with same payee (US-3.8)"
+                      class="inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-[11px] font-bold bg-purple-700 text-white hover:bg-purple-800 transition shadow-sm"
+                    >
+                      Batch All
                     </button>
                   </div>
                 {:else}

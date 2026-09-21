@@ -102,3 +102,22 @@ def apply_rules_retroactively(session: Session, rule_id: Optional[uuid.UUID] = N
 
     session.commit()
     return modified_count
+
+def preview_rule_matches(rule: Rule, session: Session, limit: int = 10):
+    """
+    Evaluates a candidate rule against all transactions without committing changes.
+    Returns a tuple of (total_matching_count, sample_matching_transactions).
+    """
+    # Temporarily ensure rule.is_active is True for evaluation
+    orig_active = rule.is_active
+    rule.is_active = True
+    try:
+        transactions = session.exec(select(Transaction).order_by(Transaction.date.desc())).all()
+        matching_txs = []
+        for tx in transactions:
+            if evaluate_rule(rule, tx.raw_payee, tx.amount_cents, tx.notes):
+                matching_txs.append(tx)
+        return len(matching_txs), matching_txs[:limit]
+    finally:
+        rule.is_active = orig_active
+
