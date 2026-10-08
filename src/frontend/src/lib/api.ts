@@ -34,6 +34,7 @@ export interface Category {
   group_id: string;
   name: string;
   is_income: boolean;
+  is_fixed?: boolean;
   is_archived: boolean;
 }
 
@@ -225,10 +226,10 @@ export function createCategoryGroup(name: string, displayOrder = 0): Promise<Cat
   });
 }
 
-export function createCategory(groupId: string, name: string, isIncome = false): Promise<Category> {
+export function createCategory(groupId: string, name: string, isIncome = false, isFixed = false): Promise<Category> {
   return request<Category>('/categories', {
     method: 'POST',
-    body: JSON.stringify({ group_id: groupId, name, is_income: isIncome }),
+    body: JSON.stringify({ group_id: groupId, name, is_income: isIncome, is_fixed: isFixed }),
   });
 }
 
@@ -435,6 +436,20 @@ export function transferSurplusToSavings(payload: {
   );
 }
 
+export function applyBulkBudget(payload: {
+  category_id?: string | null;
+  scope_type: 'year' | 'quarter';
+  year: number;
+  quarter?: number | null;
+  amount_cents: number;
+  mode: 'divide' | 'repeat';
+}): Promise<{ status: string; total_updates: number; monthly_budgeted_cents: number }> {
+  return request<{ status: string; total_updates: number; monthly_budgeted_cents: number }>('/budgets/apply-bulk', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 // Imports API
 export async function uploadCSVPreview(file: File): Promise<CSVPreviewResponse> {
   const formData = new FormData();
@@ -614,5 +629,58 @@ export function getCategoryInitiators(categoryId: string, startDate?: string, en
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('end_date', endDate);
   return request<CategoryInitiatorResponse>(`/reports/category-initiators?${params.toString()}`);
+}
+
+export function getInitiatorTransactions(categoryId: string, payee: string, startDate?: string, endDate?: string): Promise<{ category_id: string; payee: string; count: number; total_amount_cents: number; transactions: Transaction[] }> {
+  const params = new URLSearchParams();
+  params.append('category_id', categoryId);
+  params.append('payee', payee);
+  if (startDate) params.append('start_date', startDate);
+  if (endDate) params.append('end_date', endDate);
+  return request(`/reports/category-initiators/transactions?${params.toString()}`);
+}
+
+export function getMonthOverMonthComparison(categoryIds?: string, monthsBack = 6, startDate?: string, endDate?: string): Promise<{ months: string[]; series: { category_id: string; category_name: string; total_cents: number; data_points: { month: string; amount_cents: number }[] }[] }> {
+  const params = new URLSearchParams();
+  if (categoryIds) params.append('category_ids', categoryIds);
+  params.append('months_back', String(monthsBack));
+  if (startDate) params.append('start_date', startDate);
+  if (endDate) params.append('end_date', endDate);
+  return request(`/reports/month-over-month-comparison?${params.toString()}`);
+}
+
+export function getFixedVsVariableReport(startDate?: string, endDate?: string): Promise<{ total_expense_cents: number; fixed_expense_cents: number; variable_expense_cents: number; uncategorized_expense_cents: number; fixed_percentage: number; variable_percentage: number; uncategorized_percentage: number; fixed_categories: { category_id: string; name: string; total_cents: number }[]; variable_categories: { category_id: string; name: string; total_cents: number }[] }> {
+  const params = new URLSearchParams();
+  if (startDate) params.append('start_date', startDate);
+  if (endDate) params.append('end_date', endDate);
+  return request(`/reports/fixed-vs-variable${params.toString() ? `?${params.toString()}` : ''}`);
+}
+
+export function getSpendingHeatmap(startDate?: string, endDate?: string): Promise<{ by_day_of_week: { day_index: number; day_name: string; total_cents: number; count: number }[]; by_day_of_month: { day_number: number; total_cents: number; count: number }[]; daily_heatmap: { date: string; total_cents: number; count: number }[] }> {
+  const params = new URLSearchParams();
+  if (startDate) params.append('start_date', startDate);
+  if (endDate) params.append('end_date', endDate);
+  return request(`/reports/spending-heatmap${params.toString() ? `?${params.toString()}` : ''}`);
+}
+
+export function getTopMerchants(limit = 10, sortBy: 'total_amount' | 'frequency' = 'total_amount', startDate?: string, endDate?: string): Promise<{ sort_by: string; limit: number; merchants: { payee: string; total_cents: number; transaction_count: number; average_cents: number; primary_category: string }[] }> {
+  const params = new URLSearchParams();
+  params.append('limit', String(limit));
+  params.append('sort_by', sortBy);
+  if (startDate) params.append('start_date', startDate);
+  if (endDate) params.append('end_date', endDate);
+  return request(`/reports/top-merchants?${params.toString()}`);
+}
+
+export function getRecurringSubscriptions(): Promise<{ total_subscriptions_count: number; total_estimated_monthly_cents: number; total_estimated_annual_cents: number; subscriptions: { payee: string; category_name: string; average_amount_cents: number; frequency: string; estimated_monthly_cents: number; estimated_annual_cents: number; last_charge_date: string; predicted_next_due_date: string; transaction_count: number }[] }> {
+  return request('/reports/recurring-subscriptions');
+}
+
+export function getBudgetVariance(month: string): Promise<{ month: string; total_budgeted_cents: number; total_actual_cents: number; net_variance_cents: number; total_over_budget_cents: number; total_under_budget_cents: number; over_budget_categories: any[]; under_budget_categories: any[]; on_track_categories: any[] }> {
+  return request(`/reports/budget-variance?month=${month}`);
+}
+
+export function getSavingsRateRunway(monthsBack = 6): Promise<{ liquid_assets_cents: number; average_monthly_expense_cents: number; estimated_runway_months: number; overall_savings_rate_percentage: number; monthly_trends: { month: string; income_cents: number; expense_cents: number; net_savings_cents: number; savings_rate_percentage: number }[] }> {
+  return request(`/reports/savings-rate-runway?months_back=${monthsBack}`);
 }
 

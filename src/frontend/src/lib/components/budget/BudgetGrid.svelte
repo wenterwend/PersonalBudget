@@ -6,6 +6,7 @@
     type CategoryGroupBudgetDetail,
     setBudget,
     applyRollingAverages,
+    applyBulkBudget,
     deleteCategory,
     deleteCategoryGroup,
   } from '$lib/api';
@@ -30,6 +31,16 @@
 
   let editingBudgeted: Record<string, string> = $state({});
   let applyingAverages = $state(false);
+
+  // US-4.9 Bulk Budget Apply State
+  let showBulkModal = $state(false);
+  let bulkScope: 'year' | 'quarter' = $state('year');
+  let bulkYear = $state(new Date().getFullYear());
+  let bulkQuarter = $state(1);
+  let bulkCategoryId = $state('');
+  let bulkAmount = $state('');
+  let bulkMode: 'divide' | 'repeat' = $state('repeat');
+  let applyingBulk = $state(false);
 
   // Synchronize local input state with grid data when grid changes without infinite reactive loop
   $effect(() => {
@@ -119,6 +130,33 @@
     }
   }
 
+  async function handleApplyBulkSubmit(e: Event) {
+    e.preventDefault();
+    const cents = dollarsToCents(bulkAmount);
+    if (cents <= 0) {
+      alert('Please enter a valid amount greater than 0.');
+      return;
+    }
+    applyingBulk = true;
+    try {
+      const res = await applyBulkBudget({
+        category_id: bulkCategoryId || null,
+        scope_type: bulkScope,
+        year: bulkYear,
+        quarter: bulkScope === 'quarter' ? bulkQuarter : undefined,
+        amount_cents: cents,
+        mode: bulkMode,
+      });
+      alert(`Successfully updated ${res.total_updates} monthly budget entries!`);
+      showBulkModal = false;
+      dispatch('refresh');
+    } catch (e: any) {
+      alert(e.message || 'Failed to bulk apply budget.');
+    } finally {
+      applyingBulk = false;
+    }
+  }
+
   async function handleDeleteCategory(categoryId: string, categoryName: string) {
     if (confirm(`Are you sure you want to remove/archive category "${categoryName}"?`)) {
       try {
@@ -191,6 +229,16 @@
         class="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 transition"
       >
         <span>➕ Add Category / Group</span>
+      </button>
+
+      <button
+        type="button"
+        onclick={() => (showBulkModal = true)}
+        disabled={loading}
+        class="inline-flex items-center gap-1.5 rounded-xl border border-indigo-300 bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 transition"
+        title="Apply a budget amount for a full Year or Quarter (US-4.9)"
+      >
+        <span>🗓️ Bulk Budget (Year/Quarter)</span>
       </button>
 
       <button
@@ -417,4 +465,165 @@
       </div>
     {/if}
   </div>
+
+  <!-- US-4.9 Bulk Budget Apply Modal (Year / Quarter) -->
+  {#if showBulkModal}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b pb-3 border-slate-200">
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">Bulk Apply Budget (Year / Quarter)</h3>
+            <p class="text-xs text-slate-500">Apply a budget value across a full Year or Quarter (US-4.9)</p>
+          </div>
+          <button
+            type="button"
+            onclick={() => (showBulkModal = false)}
+            class="text-slate-400 hover:text-slate-600 text-2xl font-bold"
+          >
+            &times;
+          </button>
+        </div>
+
+        <form onsubmit={handleApplyBulkSubmit} class="space-y-4">
+          <!-- Scope Selector: Year vs Quarter -->
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Time Scope</label>
+            <div class="grid grid-cols-2 rounded-xl bg-slate-100 p-1 text-xs font-bold">
+              <button
+                type="button"
+                onclick={() => (bulkScope = 'year')}
+                class={`py-1.5 rounded-lg transition ${bulkScope === 'year' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600'}`}
+              >
+                Full Year (12 months)
+              </button>
+              <button
+                type="button"
+                onclick={() => (bulkScope = 'quarter')}
+                class={`py-1.5 rounded-lg transition ${bulkScope === 'quarter' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600'}`}
+              >
+                Quarter (3 months)
+              </button>
+            </div>
+          </div>
+
+          <!-- Year & Quarter Pickers -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="bulk-year-input" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Year</label>
+              <input
+                id="bulk-year-input"
+                type="number"
+                min="2000"
+                max="2100"
+                bind:value={bulkYear}
+                required
+                class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+
+            {#if bulkScope === 'quarter'}
+              <div>
+                <label for="bulk-quarter-select" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Quarter</label>
+                <select
+                  id="bulk-quarter-select"
+                  bind:value={bulkQuarter}
+                  class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value={1}>Q1 (Jan - Mar)</option>
+                  <option value={2}>Q2 (Apr - Jun)</option>
+                  <option value={3}>Q3 (Jul - Sep)</option>
+                  <option value={4}>Q4 (Oct - Dec)</option>
+                </select>
+              </div>
+            {/if}
+          </div>
+
+          <!-- Category Selector -->
+          <div>
+            <label for="bulk-category-select" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Target Category</label>
+            <select
+              id="bulk-category-select"
+              bind:value={bulkCategoryId}
+              class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            >
+              <option value="">All Categories</option>
+              {#if grid}
+                {#each grid.groups as group}
+                  <optgroup label={group.name}>
+                    {#each group.categories as cat}
+                      <option value={cat.id}>{cat.name}</option>
+                    {/each}
+                  </optgroup>
+                {/each}
+              {/if}
+            </select>
+          </div>
+
+          <!-- Amount Input -->
+          <div>
+            <label for="bulk-amount-input" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Budget Amount ($)</label>
+            <div class="relative flex items-center">
+              <span class="absolute left-3 text-slate-400 font-bold">$</span>
+              <input
+                id="bulk-amount-input"
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder="0.00"
+                bind:value={bulkAmount}
+                required
+                class="w-full rounded-xl border border-slate-300 bg-white pl-7 pr-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          <!-- Mode Selector: Repeat vs Divide -->
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Application Mode</label>
+            <div class="space-y-2 text-xs font-semibold text-slate-700">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="bulkMode"
+                  value="repeat"
+                  bind:group={bulkMode}
+                  class="text-indigo-600 focus:ring-indigo-500"
+                />
+                <span>Set amount each month (e.g., $500/month across all months)</span>
+              </label>
+
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="bulkMode"
+                  value="divide"
+                  bind:group={bulkMode}
+                  class="text-indigo-600 focus:ring-indigo-500"
+                />
+                <span>Divide total amount evenly across months (e.g., $6,000 total = $500/mo)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Modal Actions -->
+          <div class="flex items-center justify-end gap-3 pt-3">
+            <button
+              type="button"
+              onclick={() => (showBulkModal = false)}
+              class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={applyingBulk}
+              class="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-indigo-700 active:scale-95 disabled:opacity-50"
+            >
+              {applyingBulk ? 'Applying...' : 'Apply Budget Value'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {/if}
 </div>
