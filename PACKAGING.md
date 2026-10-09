@@ -4,6 +4,32 @@ This guide covers how to package and deploy the **FastAPI + SvelteKit** Personal
 
 ---
 
+## Publish Packages On GitHub
+
+The repository now includes a GitHub Actions workflow at `.github/workflows/release.yml` that builds and uploads the release artifacts automatically.
+
+### What It Publishes
+
+- `dist/BudgetApp-Windows-x64.zip`
+- `dist/BudgetApp-Linux.tar.gz`
+
+### How To Publish A Release
+
+1. Commit and push your source changes to GitHub.
+2. Create a version tag locally:
+  ```bash
+  git tag v1.0.0
+  git push origin v1.0.0
+  ```
+3. GitHub Actions will build both packages and create a GitHub release for that tag.
+4. Download links will appear under the repository's **Releases** page.
+
+### Re-run Without A New Tag
+
+You can also run the same workflow manually from the **Actions** tab using **Build and Release Packages** and `workflow_dispatch`.
+
+---
+
 ## Ready-to-Use Packages in `dist/`
 
 The following deployable packages are built and ready for distribution in the `dist/` directory:
