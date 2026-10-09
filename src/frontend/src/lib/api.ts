@@ -1,4 +1,6 @@
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = typeof window !== 'undefined' && window.location.port === '5173'
+  ? 'http://localhost:8000/api'
+  : '/api';
 
 export interface Account {
   id: string;
