@@ -5,6 +5,14 @@
     getIncomeVsExpense,
     getNetWorthHistory,
     getCategoryInitiators,
+    getInitiatorTransactions,
+    getMonthOverMonthComparison,
+    getFixedVsVariableReport,
+    getSpendingHeatmap,
+    getTopMerchants,
+    getRecurringSubscriptions,
+    getBudgetVariance,
+    getSavingsRateRunway,
     type SpendingByCategoryResponse,
     type IncomeVsExpenseResponse,
     type NetWorthResponse,
@@ -19,13 +27,29 @@
   let spendingData: SpendingByCategoryResponse | null = $state(null);
   let incomeVsExpenseData: IncomeVsExpenseResponse | null = $state(null);
   let netWorthData: NetWorthResponse | null = $state(null);
+  let monthOverMonthData: any | null = $state(null);
+  let fixedVsVariableData: any | null = $state(null);
+  let heatmapData: any | null = $state(null);
+  let topMerchantsData: any | null = $state(null);
+  let subscriptionsData: any | null = $state(null);
+  let budgetVarianceData: any | null = $state(null);
+  let savingsRunwayData: any | null = $state(null);
   let loading = $state(false);
 
-  // US-5.7 Category Breakdown State
+  // US-5.7 & US-5.10 Initiator & Transaction Drill-down State
   let showInitiatorModal = $state(false);
+  let selectedCategoryId = $state('');
   let selectedCategoryName = $state('');
   let initiatorData: CategoryInitiatorResponse | null = $state(null);
   let loadingInitiators = $state(false);
+
+  let showDrilldownModal = $state(false);
+  let drilldownPayee = $state('');
+  let drilldownTransactions: any[] = $state([]);
+  let loadingDrilldown = $state(false);
+
+  // Leaderboard Sort Toggle (US-5.14)
+  let merchantSortBy: 'total_amount' | 'frequency' = $state('total_amount');
 
   // Palette for SVG chart categories
   const categoryColors = [
@@ -80,15 +104,30 @@
 
   async function loadReportsData() {
     loading = true;
+    const currentMonth = new Date().toISOString().slice(0, 7);
     try {
-      const [spending, incExp, nw] = await Promise.all([
+      const [spending, incExp, nw, mom, fvv, hmap, merchants, subs, variance, sr] = await Promise.all([
         getSpendingByCategory(startDate || undefined, endDate || undefined),
         getIncomeVsExpense(startDate || undefined, endDate || undefined),
         getNetWorthHistory(),
+        getMonthOverMonthComparison(undefined, 6, startDate || undefined, endDate || undefined),
+        getFixedVsVariableReport(startDate || undefined, endDate || undefined),
+        getSpendingHeatmap(startDate || undefined, endDate || undefined),
+        getTopMerchants(10, merchantSortBy, startDate || undefined, endDate || undefined),
+        getRecurringSubscriptions(),
+        getBudgetVariance(currentMonth),
+        getSavingsRateRunway(6),
       ]);
       spendingData = spending;
       incomeVsExpenseData = incExp;
       netWorthData = nw;
+      monthOverMonthData = mom;
+      fixedVsVariableData = fvv;
+      heatmapData = hmap;
+      topMerchantsData = merchants;
+      subscriptionsData = subs;
+      budgetVarianceData = variance;
+      savingsRunwayData = sr;
     } catch (e) {
       console.error('Failed to load reports data:', e);
     } finally {
@@ -96,7 +135,17 @@
     }
   }
 
+  async function handleMerchantSortChange(newSort: 'total_amount' | 'frequency') {
+    merchantSortBy = newSort;
+    try {
+      topMerchantsData = await getTopMerchants(10, merchantSortBy, startDate || undefined, endDate || undefined);
+    } catch (e) {
+      console.error('Failed to load top merchants:', e);
+    }
+  }
+
   async function openInitiatorBreakdown(catId: string, catName: string) {
+    selectedCategoryId = catId;
     selectedCategoryName = catName;
     showInitiatorModal = true;
     loadingInitiators = true;
@@ -107,6 +156,21 @@
       initiatorData = null;
     } finally {
       loadingInitiators = false;
+    }
+  }
+
+  async function openDrilldownModal(payee: string) {
+    drilldownPayee = payee;
+    showDrilldownModal = true;
+    loadingDrilldown = true;
+    try {
+      const res = await getInitiatorTransactions(selectedCategoryId, payee, startDate || undefined, endDate || undefined);
+      drilldownTransactions = res.transactions;
+    } catch (e) {
+      console.error('Failed to load drilldown transactions:', e);
+      drilldownTransactions = [];
+    } finally {
+      loadingDrilldown = false;
     }
   }
 
@@ -254,8 +318,14 @@
         </div>
       </div>
 
+      <!-- US-5.17 Savings Rate & Liquid Runway Card -->
       <div class="p-4 rounded-2xl bg-slate-100 border border-slate-200">
-        <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-600">Net Savings Rate</span>
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-600">Net Savings Rate</span>
+          <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800">
+            Runway: {savingsRunwayData ? `${savingsRunwayData.estimated_runway_months} mo` : '&mdash;'}
+          </span>
+        </div>
         <div class="text-xl font-black text-slate-900 mt-1">
           {savingsRate}%
         </div>
@@ -375,6 +445,184 @@
       </div>
     </div>
 
+    <!-- US-5.12 Fixed vs Variable Expense Breakdown & US-5.14 Top Merchants Leaderboard -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- US-5.12 Fixed vs Variable Breakdown -->
+      {#if fixedVsVariableData}
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 print:break-inside-avoid">
+          <div class="flex items-center justify-between border-b pb-3">
+            <h3 class="text-base font-bold text-slate-900">Fixed vs. Variable Expenses</h3>
+            <span class="text-xs font-extrabold text-slate-500">
+              Total: {formatCents(fixedVsVariableData.total_expense_cents)}
+            </span>
+          </div>
+
+          <div class="space-y-4">
+            <!-- Progress Bar split -->
+            <div class="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex">
+              <div
+                class="h-full bg-indigo-600 transition-all duration-500"
+                style="width: {fixedVsVariableData.fixed_percentage}%"
+                title="Fixed Expenses: {fixedVsVariableData.fixed_percentage}%"
+              ></div>
+              <div
+                class="h-full bg-emerald-500 transition-all duration-500"
+                style="width: {fixedVsVariableData.variable_percentage}%"
+                title="Variable Expenses: {fixedVsVariableData.variable_percentage}%"
+              ></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div class="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-1">
+                <span class="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700">Fixed (Mandatory)</span>
+                <div class="text-base font-black text-indigo-950">
+                  {formatCents(fixedVsVariableData.fixed_expense_cents)}
+                  <span class="text-xs font-bold text-indigo-600">({fixedVsVariableData.fixed_percentage}%)</span>
+                </div>
+              </div>
+
+              <div class="p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl space-y-1">
+                <span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">Variable (Discretionary)</span>
+                <div class="text-base font-black text-emerald-950">
+                  {formatCents(fixedVsVariableData.variable_expense_cents)}
+                  <span class="text-xs font-bold text-emerald-600">({fixedVsVariableData.variable_percentage}%)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      {/if}
+
+      <!-- US-5.14 Top Merchant Leaderboard -->
+      {#if topMerchantsData}
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 print:break-inside-avoid">
+          <div class="flex items-center justify-between border-b pb-3">
+            <h3 class="text-base font-bold text-slate-900">Top Merchant Leaderboard</h3>
+            <div class="inline-flex rounded-lg bg-slate-100 p-0.5 text-[11px] font-bold">
+              <button
+                type="button"
+                onclick={() => handleMerchantSortChange('total_amount')}
+                class={`px-2 py-0.5 rounded transition ${merchantSortBy === 'total_amount' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600'}`}
+              >
+                By Amount
+              </button>
+              <button
+                type="button"
+                onclick={() => handleMerchantSortChange('frequency')}
+                class={`px-2 py-0.5 rounded transition ${merchantSortBy === 'frequency' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600'}`}
+              >
+                By Frequency
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-2 text-xs">
+            {#each topMerchantsData.merchants as m, idx}
+              <div class="flex items-center justify-between p-2 rounded-xl border border-slate-100 bg-slate-50/60 font-medium">
+                <div class="flex items-center gap-2">
+                  <span class="h-5 w-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-black flex items-center justify-center">
+                    {idx + 1}
+                  </span>
+                  <div>
+                    <span class="font-bold text-slate-900">{m.payee}</span>
+                    <span class="text-[10px] text-slate-400 block">{m.primary_category}</span>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="font-black text-slate-900">{formatCents(m.total_cents)}</div>
+                  <div class="text-[10px] text-slate-500 font-semibold">{m.transaction_count} txns</div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
+    </div>
+
+    <!-- US-5.15 Recurring Subscriptions Tracker & US-5.16 Budget Variance -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- US-5.15 Subscriptions Tracker -->
+      {#if subscriptionsData}
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 print:break-inside-avoid">
+          <div class="flex items-center justify-between border-b pb-3">
+            <div>
+              <h3 class="text-base font-bold text-slate-900">Recurring Subscriptions & Bills</h3>
+              <p class="text-[11px] text-slate-500">Detected regular recurring charges & predicted due dates</p>
+            </div>
+            <div class="text-right">
+              <span class="text-xs font-black text-indigo-600">{formatCents(subscriptionsData.total_estimated_monthly_cents)}/mo</span>
+            </div>
+          </div>
+
+          {#if subscriptionsData.subscriptions.length === 0}
+            <div class="p-6 text-center text-slate-400 text-xs font-semibold">
+              No recurring subscription charges detected yet.
+            </div>
+          {:else}
+            <div class="space-y-2 text-xs">
+              {#each subscriptionsData.subscriptions as sub}
+                <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/70 flex items-center justify-between">
+                  <div class="space-y-0.5">
+                    <div class="font-bold text-slate-900 flex items-center gap-2">
+                      <span>{sub.payee}</span>
+                      <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-indigo-100 text-indigo-800">{sub.frequency}</span>
+                    </div>
+                    <div class="text-[10px] text-slate-500 font-semibold">
+                      Category: {sub.category_name} &bull; Next Due: <span class="text-slate-800 font-bold">{sub.predicted_next_due_date}</span>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-black text-slate-900">{formatCents(sub.average_amount_cents)}</div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
+
+      <!-- US-5.16 Budget Variance Report -->
+      {#if budgetVarianceData}
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 print:break-inside-avoid">
+          <div class="flex items-center justify-between border-b pb-3">
+            <div>
+              <h3 class="text-base font-bold text-slate-900">Budget Variance Report</h3>
+              <p class="text-[11px] text-slate-500">Accuracy evaluation for month {budgetVarianceData.month}</p>
+            </div>
+            <span class={`text-xs font-black ${budgetVarianceData.net_variance_cents >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              Net: {formatCents(budgetVarianceData.net_variance_cents)}
+            </span>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            {#if budgetVarianceData.over_budget_categories.length > 0}
+              <div class="space-y-1">
+                <span class="text-[10px] font-extrabold uppercase text-rose-600 tracking-wider">Over Budget</span>
+                {#each budgetVarianceData.over_budget_categories as item}
+                  <div class="p-2 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between">
+                    <span class="font-bold text-rose-950">{item.category_name}</span>
+                    <span class="font-black text-rose-700">+{formatCents(Math.abs(item.variance_cents))} over ({item.percentage_used}%)</span>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+
+            {#if budgetVarianceData.under_budget_categories.length > 0}
+              <div class="space-y-1">
+                <span class="text-[10px] font-extrabold uppercase text-emerald-600 tracking-wider">Under Budget / Surplus</span>
+                {#each budgetVarianceData.under_budget_categories.slice(0, 4) as item}
+                  <div class="p-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+                    <span class="font-bold text-emerald-950">{item.category_name}</span>
+                    <span class="font-black text-emerald-700">{formatCents(item.variance_cents)} remaining</span>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        </div>
+      {/if}
+    </div>
+
     <!-- Account Net Worth Breakdown -->
     {#if netWorthData}
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 print:break-inside-avoid">
@@ -432,7 +680,14 @@
               {#each initiatorData.initiators as item, idx}
                 <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-1.5">
                   <div class="flex items-center justify-between font-bold text-xs text-slate-900">
-                    <span class="truncate max-w-[240px]">{item.payee}</span>
+                    <button
+                      type="button"
+                      onclick={() => openDrilldownModal(item.payee)}
+                      class="truncate max-w-[240px] text-indigo-600 hover:underline text-left"
+                      title="Click to view transaction drill-down list (US-5.10)"
+                    >
+                      {item.payee} 🔍
+                    </button>
                     <div class="flex items-center gap-2">
                       <span>{formatCents(item.total_cents)}</span>
                       <span class="text-slate-400 text-[10px]">({item.percentage}%)</span>
@@ -457,6 +712,70 @@
           <button
             type="button"
             onclick={() => (showInitiatorModal = false)}
+            class="rounded-xl border border-slate-300 bg-white px-4 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- US-5.10 Initiator Transaction Drill-Down Modal -->
+  {#if showDrilldownModal}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 no-print">
+      <div class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between border-b pb-3">
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">Transactions: {drilldownPayee}</h3>
+            <p class="text-xs text-slate-500">Drill-down view of transactions making up this statistic (US-5.10)</p>
+          </div>
+          <button
+            type="button"
+            onclick={() => (showDrilldownModal = false)}
+            class="text-slate-400 hover:text-slate-600 text-2xl font-bold px-2"
+          >
+            &times;
+          </button>
+        </div>
+
+        {#if loadingDrilldown}
+          <div class="p-8 text-center text-slate-500 text-xs font-semibold">
+            Loading drill-down transactions...
+          </div>
+        {:else if drilldownTransactions.length === 0}
+          <div class="p-8 text-center text-slate-400 text-xs font-semibold">
+            No individual transactions found.
+          </div>
+        {:else}
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-700">
+              <thead class="bg-slate-100 uppercase text-[10px] font-extrabold text-slate-500">
+                <tr>
+                  <th class="p-2.5">Date</th>
+                  <th class="p-2.5">Account</th>
+                  <th class="p-2.5">Payee</th>
+                  <th class="p-2.5 text-right">Amount ($)</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                {#each drilldownTransactions as tx}
+                  <tr class="hover:bg-slate-50">
+                    <td class="p-2.5 font-mono">{tx.date}</td>
+                    <td class="p-2.5 font-bold">{tx.account_name || 'Account'}</td>
+                    <td class="p-2.5">{tx.raw_payee}</td>
+                    <td class="p-2.5 text-right font-black text-slate-900">{formatCents(tx.amount_cents)}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+
+        <div class="flex justify-end pt-2">
+          <button
+            type="button"
+            onclick={() => (showDrilldownModal = false)}
             class="rounded-xl border border-slate-300 bg-white px-4 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
           >
             Close

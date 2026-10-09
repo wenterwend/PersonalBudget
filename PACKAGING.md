@@ -1,157 +1,106 @@
-# Packaging Budget App into a Standalone Executable
+# Packaging & Deploying the Budget Application
 
-This guide explains how to package the **FastAPI + SvelteKit** Budget Application into a single standalone executable file (`.exe` for Windows or binary for Linux) that runs on systems without requiring Python or Node.js to be pre-installed.
-
----
-
-## Prerequisites
-
-1. Build the SvelteKit frontend into static HTML/CSS/JS files:
-   ```bash
-   cd src/frontend
-   npm install -D @sveltejs/adapter-static
-   ```
-
-2. Configure `src/frontend/svelte.config.js`:
-   ```javascript
-   import adapter from '@sveltejs/adapter-static';
-
-   export default {
-       kit: {
-           adapter: adapter({
-               pages: 'build',
-               assets: 'build',
-               fallback: 'index.html',
-               strict: true
-           })
-       }
-   };
-   ```
-
-3. Build the frontend:
-   ```bash
-   npm run build
-   ```
+This guide covers how to package and deploy the **FastAPI + SvelteKit** Personal Budget Application into ready-to-run distributions for **Windows** and **Linux** with a clean database—without altering or destroying the development database.
 
 ---
 
-## Option 1: PyInstaller (Single-File `.exe` / Binary with Browser Auto-Launch)
+## Publish Packages On GitHub
 
-This bundles the FastAPI backend, SQLite database logic, and static frontend assets into a single executable file. When double-clicked, it starts the backend server locally and opens your browser.
+The repository now includes a GitHub Actions workflow at `.github/workflows/release.yml` that builds and uploads the release artifacts automatically.
 
-### 1. Install PyInstaller
+### What It Publishes
+
+- `dist/BudgetApp-Windows-x64.zip`
+- `dist/BudgetApp-Linux.tar.gz`
+
+### How To Publish A Release
+
+1. Commit and push your source changes to GitHub.
+2. Create a version tag locally:
+  ```bash
+  git tag v1.0.0
+  git push origin v1.0.0
+  ```
+3. GitHub Actions will build both packages and create a GitHub release for that tag.
+4. Download links will appear under the repository's **Releases** page.
+
+### Re-run Without A New Tag
+
+You can also run the same workflow manually from the **Actions** tab using **Build and Release Packages** and `workflow_dispatch`.
+
+---
+
+## Ready-to-Use Packages in `dist/`
+
+The following deployable packages are built and ready for distribution in the `dist/` directory:
+
+1. **Windows 64-bit Portable Distribution**:
+   - **File**: `dist/BudgetApp-Windows-x64.zip` (~73 MB)
+   - **Target**: Any modern Windows 10/11 64-bit computer.
+   - **Dependencies**: **Zero** (no Python, Node.js, git, or admin privileges needed).
+   - **Database**: Bundled with a freshly initialized, clean `budget.db` SQLite database with complete schemas and zero records. Default starter categories are automatically populated when first opened.
+   - **How Client Uses It**:
+     1. Extract `BudgetApp-Windows-x64.zip` anywhere on their computer (e.g. Desktop, Documents).
+     2. Double-click `Start Budget App.bat` (or `Start Budget App (Silent).vbs` for silent mode).
+     3. Their default web browser opens automatically to `http://localhost:8000`.
+
+2. **Linux 64-bit Executable**:
+   - **Files**: `dist/BudgetApp-Linux` & `dist/BudgetApp-Linux.tar.gz` (~82 MB)
+   - **Target**: Any modern 64-bit Linux distribution.
+   - **Dependencies**: None (self-contained ELF binary bundling Python, libraries, and frontend).
+   - **How to Run**:
+     ```bash
+     chmod +x BudgetApp-Linux
+     ./BudgetApp-Linux
+     ```
+
+---
+
+## Clean Database Isolation Guarantees
+
+- **Dev Database Protection**: The developer's database (`./budget.db` in project root) is never modified, purged, or touched during packaging or testing. SHA256 checksums are verified before and after packaging.
+- **Client Clean Slate**: Deployable packages ship with an isolated, clean SQLite database (0 accounts, 0 transactions). On initial run, SvelteKit seeds standard starter category groups (`Income`, `Living Expenses`, `Lifestyle`) and categories.
+
+---
+
+## How to Rebuild Packages
+
+### 1. Rebuild the Standalone Windows Package (from Linux or Windows)
+Run the automated packaging script:
 ```bash
-.venv/bin/pip install pyinstaller
+.venv/bin/python scripts/package_windows.py
+```
+This script automatically:
+1. Downloads the official Python 3.12 64-bit embeddable runtime.
+2. Downloads and extracts all Windows `win_amd64` binary wheels into `Lib/site-packages`.
+3. Compiles the SvelteKit static frontend (`src/frontend/build`).
+4. Copies backend application code (`src/backend`).
+5. Generates a fresh, isolated `budget.db`.
+6. Generates `Start Budget App.bat`, `Start Budget App (Silent).vbs`, and `Stop Budget App.bat`.
+7. Creates `dist/BudgetApp-Windows-x64.zip`.
+
+### 2. Rebuild the Linux Standalone Executable
+Ensure the frontend is built, then run PyInstaller:
+```bash
+.venv/bin/pyinstaller --noconfirm --clean --onefile \
+  --add-data "src/frontend/build:frontend_build" \
+  --hidden-import "uvicorn.logging" \
+  --hidden-import "uvicorn.loops" \
+  --hidden-import "uvicorn.loops.auto" \
+  --hidden-import "uvicorn.protocols" \
+  --hidden-import "uvicorn.protocols.http" \
+  --hidden-import "uvicorn.protocols.http.auto" \
+  --hidden-import "uvicorn.protocols.websockets" \
+  --hidden-import "uvicorn.protocols.websockets.auto" \
+  --hidden-import "uvicorn.lifespan" \
+  --hidden-import "uvicorn.lifespan.on" \
+  --name BudgetApp-Linux \
+  run_app.py
 ```
 
-### 2. Update `src/backend/main.py` for PyInstaller Bundle Path
-Add asset resolution logic in `src/backend/main.py`:
-```python
-import sys
-import os
-import webbrowser
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-
-app = FastAPI()
-
-# Determine static asset directory (works both in development and inside PyInstaller bundle)
-if hasattr(sys, '_MEIPASS'):
-    build_dir = os.path.join(sys._MEIPASS, "src/frontend/build")
-else:
-    build_dir = os.path.join(os.path.dirname(__file__), "../frontend/build")
-
-if os.path.exists(build_dir):
-    app.mount("/", StaticFiles(directory=build_dir, html=True), name="static")
-
-# Auto-open web browser on startup
-@app.on_event("startup")
-def open_browser():
-    webbrowser.open("http://127.0.0.1:8000")
-```
-
-### 3. Build the Standalone Executable
-
-**On Windows (PowerShell / Command Prompt):**
+### 3. Build a Single-File `.exe` on a Windows Machine
+If the client or developer prefers a single `.exe` executable file rather than an unzipped portable folder, run:
 ```cmd
-pyinstaller --noconfirm --onefile --windowed ^
-  --add-data "src/frontend/build;src/frontend/build" ^
-  --name BudgetApp ^
-  src/backend/main.py
+build_windows_exe.bat
 ```
-
-**On Linux:**
-```bash
-pyinstaller --noconfirm --onefile \
-  --add-data "src/frontend/build:src/frontend/build" \
-  --name BudgetApp \
-  src/backend/main.py
-```
-
-### 4. Output
-The single executable file will be generated in the `dist/` directory:
-- **Windows**: `dist/BudgetApp.exe`
-- **Linux**: `dist/BudgetApp`
-
----
-
-## Option 2: Native Desktop Window App (Using `pywebview`)
-
-If you want the application to run inside a native desktop window (like a standard desktop software application) instead of launching an external web browser:
-
-### 1. Install `pywebview`
-```bash
-.venv/bin/pip install pywebview pyinstaller
-```
-
-### 2. Create `desktop_app.py` in Project Root
-Create a launcher script named `desktop_app.py`:
-```python
-import threading
-import uvicorn
-import webview
-from src.backend.main import app
-
-def run_backend():
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="error")
-
-if __name__ == "__main__":
-    # Start FastAPI backend in a background thread
-    server_thread = threading.Thread(target=run_backend, daemon=True)
-    server_thread.start()
-
-    # Create native desktop window pointing to the app
-    window = webview.create_window(
-        title="Personal Budget & Finance",
-        url="http://127.0.0.1:8000",
-        width=1280,
-        height=800,
-        resizable=True
-    )
-    webview.start()
-```
-
-### 3. Build Desktop Executable with PyInstaller
-
-**On Windows:**
-```cmd
-pyinstaller --noconfirm --onefile --windowed ^
-  --add-data "src/frontend/build;src/frontend/build" ^
-  --name BudgetDesktop ^
-  desktop_app.py
-```
-
-**On Linux:**
-```bash
-pyinstaller --noconfirm --onefile --windowed \
-  --add-data "src/frontend/build:src/frontend/build" \
-  --name BudgetDesktop \
-  desktop_app.py
-```
-
-### 4. Output
-The native desktop executable will be created in `dist/`:
-- **Windows**: `dist/BudgetDesktop.exe`
-- **Linux**: `dist/BudgetDesktop`
-
-Double-clicking the file launches a dedicated desktop application window without displaying any terminal prompts or requiring an external web browser.
+This produces `dist/BudgetApp.exe`.

@@ -460,7 +460,8 @@ Legend: `[ ]` Pending | `[🔄]` In Progress | `[x]` Completed
 | **US-4.5** | Category Balance Transfer to Savings | Milestone 4 | `[x] Completed` |
 | **US-4.6** | Category Creation, Customization & Removal | Milestone 4 | `[x] Completed` |
 | **US-4.7** | Category Editing, Re-parenting & Merging | Milestone 6 | `[x] Completed` |
-| **US-4.8** | Positive Value Normalization for Rolling Average Budget Copies | Milestone 4 | `[ ] Proposed` |
+| **US-4.8** | Positive Value Normalization for Rolling Average Budget Copies | Milestone 4 | `[x] Completed` |
+| **US-4.9** | Annual or Quarterly Budget Value Application | Milestone 4 | `[x] Completed` |
 | **US-5.1** | Custom Visual Query Builder | Milestone 5 | `[x] Completed` |
 | **US-5.2** | Query Result CSV Export | Milestone 5 | `[x] Completed` |
 | **US-5.3** | Spending Reports & Dashboards | Milestone 5 | `[x] Completed` |
@@ -470,13 +471,13 @@ Legend: `[ ]` Pending | `[🔄]` In Progress | `[x]` Completed
 | **US-5.7** | Category Breakdown by Transaction Initiator | Milestone 5 | `[x] Completed` |
 | **US-5.8** | Custom Date Range Selector in Reports | Milestone 5 | `[x] Completed` |
 | **US-5.9** | Context-Aware Query Input Validation & Field Operators | Milestone 5 | `[x] Completed` |
-| **US-5.10** | Initiator Transaction Drill-Down View in Reports | Milestone 5 | `[ ] Proposed` |
-| **US-5.11** | Month-over-Month Category Comparison Chart | Milestone 5 | `[ ] Proposed` |
-| **US-5.12** | Fixed vs. Variable Expense Breakdown Report | Milestone 5 | `[ ] Proposed` |
-| **US-5.13** | Day-of-Week & Monthly Heatmap Visualization | Milestone 5 | `[ ] Proposed` |
-| **US-5.14** | Top Merchant & Payee Leaderboard | Milestone 5 | `[ ] Proposed` |
-| **US-5.15** | Recurring Subscriptions & Regular Bills Tracker | Milestone 5 | `[ ] Proposed` |
-| **US-5.16** | Budget Variance (Over/Under Target) Report | Milestone 5 | `[ ] Proposed` |
-| **US-5.17** | Savings Rate & Liquid Runway Trend Chart | Milestone 5 | `[ ] Proposed` |
+| **US-5.10** | Initiator Transaction Drill-Down View in Reports | Milestone 5 | `[x] Completed` |
+| **US-5.11** | Month-over-Month Category Comparison Chart | Milestone 5 | `[x] Completed` |
+| **US-5.12** | Fixed vs. Variable Expense Breakdown Report | Milestone 5 | `[x] Completed` |
+| **US-5.13** | Day-of-Week & Monthly Heatmap Visualization | Milestone 5 | `[x] Completed` |
+| **US-5.14** | Top Merchant & Payee Leaderboard | Milestone 5 | `[x] Completed` |
+| **US-5.15** | Recurring Subscriptions & Regular Bills Tracker | Milestone 5 | `[x] Completed` |
+| **US-5.16** | Budget Variance (Over/Under Target) Report | Milestone 5 | `[x] Completed` |
+| **US-5.17** | Savings Rate & Liquid Runway Trend Chart | Milestone 5 | `[x] Completed` |
 | **US-6.1** | Mobile Progressive Web App (PWA) | Milestone 5 | `[x] Completed` |
 | **US-6.2** | Concurrent Multi-User Access | Milestone 5 | `[x] Completed` |

@@ -37,6 +37,7 @@ src/frontend/dist/
 build/
 dist/
 *.spec
+.build_cache/
 
 # Environment & Local Configuration
 .env

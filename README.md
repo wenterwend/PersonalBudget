@@ -1,6 +1,21 @@
 # Personal Finance & Budgeting Application
 
+[![Latest Release](https://img.shields.io/github/v/release/wenterwend/PersonalBudget?display_name=tag)](https://github.com/wenterwend/PersonalBudget/releases/latest)
+
 A modern, responsive client-server personal finance and household budgeting application built with **SvelteKit** on the frontend, a **Python FastAPI** backend, and an embedded **SQLite 3** database running in Write-Ahead Logging (WAL) mode.
+
+---
+
+## Downloads
+
+Download the packaged builds from the latest GitHub release:
+
+- **Latest release page:** [github.com/wenterwend/PersonalBudget/releases/latest](https://github.com/wenterwend/PersonalBudget/releases/latest)
+- **Windows portable package:** `BudgetApp-Windows-x64.zip`
+- **Linux standalone binary:** `BudgetApp-Linux`
+- **Linux compressed archive:** `BudgetApp-Linux.tar.gz`
+
+Tagged releases automatically attach these build artifacts through GitHub Actions.
 
 ---
 

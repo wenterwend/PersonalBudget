@@ -23,12 +23,14 @@ class CategoryCreate(BaseModel):
     group_id: uuid.UUID
     name: str
     is_income: bool = False
+    is_fixed: bool = False
     is_archived: bool = False
 
 class CategoryUpdate(BaseModel):
     group_id: Optional[uuid.UUID] = None
     name: Optional[str] = None
     is_income: Optional[bool] = None
+    is_fixed: Optional[bool] = None
     is_archived: Optional[bool] = None
 
 class CategoryResponse(BaseModel):
@@ -36,6 +38,7 @@ class CategoryResponse(BaseModel):
     group_id: uuid.UUID
     name: str
     is_income: bool
+    is_fixed: bool
     is_archived: bool
 
 CategoryGroupResponse.model_rebuild()
@@ -62,6 +65,7 @@ def list_category_groups(
                 group_id=c.group_id,
                 name=c.name,
                 is_income=c.is_income,
+                is_fixed=c.is_fixed,
                 is_archived=c.is_archived
             ) for c in categories]
         ))
@@ -103,6 +107,7 @@ def list_categories(
             group_id=c.group_id,
             name=c.name,
             is_income=c.is_income,
+            is_fixed=c.is_fixed,
             is_archived=c.is_archived
         ) for c in categories
     ]
@@ -120,6 +125,7 @@ def create_category(
         group_id=req.group_id,
         name=req.name,
         is_income=req.is_income,
+        is_fixed=req.is_fixed,
         is_archived=req.is_archived
     )
     session.add(category)
@@ -130,6 +136,7 @@ def create_category(
         group_id=category.group_id,
         name=category.name,
         is_income=category.is_income,
+        is_fixed=category.is_fixed,
         is_archived=category.is_archived
     )
 
@@ -160,6 +167,7 @@ def update_category(
         group_id=category.group_id,
         name=category.name,
         is_income=category.is_income,
+        is_fixed=category.is_fixed,
         is_archived=category.is_archived
     )
 

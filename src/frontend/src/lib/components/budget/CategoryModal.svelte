@@ -23,6 +23,7 @@
   let categoryName = $state('');
   let selectedGroupId = $state('');
   let isIncome = $state(false);
+  let isFixed = $state(false);
 
   let sourceCategoryId = $state('');
   let targetCategoryId = $state('');
@@ -39,6 +40,7 @@
       sourceCategoryId = '';
       targetCategoryId = '';
       isIncome = false;
+      isFixed = false;
       error = null;
       if (defaultGroupId) {
         selectedGroupId = defaultGroupId;
@@ -67,7 +69,7 @@
           loading = false;
           return;
         }
-        await createCategory(selectedGroupId, categoryName.trim(), isIncome);
+        await createCategory(selectedGroupId, categoryName.trim(), isIncome, isFixed);
       } else if (mode === 'group') {
         if (!groupName.trim()) {
           error = 'Category group name is required.';
@@ -191,14 +193,27 @@
           </div>
 
           <!-- Income vs Expense Toggle -->
-          <label class="flex items-center gap-2 cursor-pointer pt-1">
-            <input
-              type="checkbox"
-              bind:checked={isIncome}
-              class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-            />
-            <span class="text-xs font-bold text-slate-700">Income Category (e.g. Salary, Side Hustle)</span>
-          </label>
+          <div class="space-y-2 pt-1">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                bind:checked={isIncome}
+                class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span class="text-xs font-bold text-slate-700">Income Category (e.g. Salary, Side Hustle)</span>
+            </label>
+
+            {#if !isIncome}
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  bind:checked={isFixed}
+                  class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span class="text-xs font-bold text-slate-700">Fixed Expense (Mandatory Living Cost vs Discretionary)</span>
+              </label>
+            {/if}
+          </div>
         {:else if mode === 'group'}
           <!-- Group Name -->
           <div>

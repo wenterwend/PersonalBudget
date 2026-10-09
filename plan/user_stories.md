@@ -81,6 +81,9 @@ As a user, I want to be able to edit a budget sub category name or change it's p
 ### US-4.8: Positive Value Normalization for Rolling Average Budget Copies
 As a user, on the budget screen, when I click copy for the 3 month average and the amount populates into the budget, ensure the amount is a positive value rather than retaining the negative amount so that I don't have to do that step manually.
 
+### US-4.9: Annual or Quarterly Budget Value Application
+As a user, on the budget screen, I want to be able to apply a budget value for a full year or quarter if I choose to, so that I can easily populate monthly budgets across multiple months without entering each month manually.
+
 
 ## 5. Query Builder, Reporting & Export
 

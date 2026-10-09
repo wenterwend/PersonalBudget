@@ -40,6 +40,11 @@ def init_db():
     # Light schema migration for SQLite databases
     if DATABASE_URL.startswith("sqlite"):
         with engine.connect() as conn:
+            cat_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(categories)").fetchall()]
+            if cat_cols and "is_fixed" not in cat_cols:
+                conn.exec_driver_sql("ALTER TABLE categories ADD COLUMN is_fixed BOOLEAN DEFAULT 0")
+                conn.commit()
+
             rules_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(rules)").fetchall()]
             if rules_cols:
                 if "amount_condition" not in rules_cols:

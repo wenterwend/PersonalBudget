@@ -62,6 +62,7 @@ class Category(SQLModel, table=True):
     group_id: uuid.UUID = Field(foreign_key="category_groups.id", index=True)
     name: str = Field(index=True)
     is_income: bool = Field(default=False)
+    is_fixed: bool = Field(default=False)
     is_archived: bool = Field(default=False, index=True)
 
     group: Optional[CategoryGroup] = Relationship(back_populates="categories")

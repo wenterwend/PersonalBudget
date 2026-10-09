@@ -58,6 +58,14 @@ class TransferSurplusRequest(BaseModel):
     category_ids: List[uuid.UUID]
     target_account_id: uuid.UUID
 
+class BulkApplyBudgetRequest(BaseModel):
+    category_id: Optional[uuid.UUID] = None
+    scope_type: str  # "year" or "quarter"
+    year: int
+    quarter: Optional[int] = None  # 1, 2, 3, or 4
+    amount_cents: int
+    mode: str = "divide"  # "divide" or "repeat"
+
 @router.get("/grid", response_model=MonthlyBudgetGridResponse)
 def get_monthly_budget_grid(
     month: str = Query(..., description="Month in YYYY-MM format"),
@@ -110,7 +118,8 @@ def get_monthly_budget_grid(
                 prev_rollover = calculate_category_available_cents(c.id, prev_month, session, memo_cache)
 
             available_cents = budgeted_cents + prev_rollover + actual_cents
-            rolling_3mo = calculate_rolling_n_month_average(c.id, month, 3, session)
+            raw_rolling = calculate_rolling_n_month_average(c.id, month, 3, session)
+            rolling_3mo = abs(raw_rolling) if not c.is_income else raw_rolling
 
             cat_details.append(CategoryBudgetDetail(
                 id=c.id,
@@ -200,7 +209,8 @@ def get_rolling_averages(
     categories = session.exec(select(Category).where(Category.is_archived == False)).all()
     averages = {}
     for c in categories:
-        averages[str(c.id)] = calculate_rolling_n_month_average(c.id, month, months_back, session)
+        raw_avg = calculate_rolling_n_month_average(c.id, month, months_back, session)
+        averages[str(c.id)] = abs(raw_avg) if not c.is_income else raw_avg
     return {"month": month, "months_back": months_back, "averages": averages}
 
 @router.post("/apply-rolling-averages")
@@ -296,4 +306,62 @@ def transfer_surplus_to_savings(
         "transferred_cents": total_surplus_transferred,
         "target_account_name": account.name,
         "transferred_categories": transferred_categories
+    }
+
+@router.post("/apply-bulk")
+def apply_bulk_budget(
+    req: BulkApplyBudgetRequest,
+    session: Session = Depends(get_session)
+):
+    """
+    Applies a budget value for a full year or quarter across target months (US-4.9).
+    """
+    if req.scope_type == "year":
+        months = [f"{req.year}-{m:02d}" for m in range(1, 13)]
+    elif req.scope_type == "quarter":
+        if not req.quarter or req.quarter not in (1, 2, 3, 4):
+            raise HTTPException(status_code=400, detail="Quarter must be 1, 2, 3, or 4")
+        start_m = (req.quarter - 1) * 3 + 1
+        months = [f"{req.year}-{m:02d}" for m in range(start_m, start_m + 3)]
+    else:
+        raise HTTPException(status_code=400, detail="Invalid scope_type; must be 'year' or 'quarter'")
+
+    num_months = len(months)
+    monthly_cents = req.amount_cents // num_months if req.mode == "divide" else req.amount_cents
+
+    if req.category_id:
+        category = session.get(Category, req.category_id)
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
+        categories = [category]
+    else:
+        categories = session.exec(select(Category).where(Category.is_archived == False)).all()
+
+    updated_count = 0
+    for c in categories:
+        for m_str in months:
+            mb = session.exec(
+                select(MonthlyBudget)
+                .where(MonthlyBudget.month == m_str)
+                .where(MonthlyBudget.category_id == c.id)
+            ).first()
+
+            if not mb:
+                mb = MonthlyBudget(month=m_str, category_id=c.id, budgeted_cents=monthly_cents)
+                session.add(mb)
+            else:
+                mb.budgeted_cents = monthly_cents
+                session.add(mb)
+            updated_count += 1
+
+    session.commit()
+    return {
+        "status": "ok",
+        "scope_type": req.scope_type,
+        "year": req.year,
+        "quarter": req.quarter,
+        "months_count": num_months,
+        "categories_updated": len(categories),
+        "total_updates": updated_count,
+        "monthly_budgeted_cents": monthly_cents
     }
