@@ -12,6 +12,7 @@ DIST_DIR = os.path.join(ROOT_DIR, "dist")
 PKG_DIR = os.path.join(DIST_DIR, "BudgetApp-Windows-x64")
 CACHE_DIR = os.path.join(ROOT_DIR, ".build_cache")
 WHL_CACHE = os.path.join(CACHE_DIR, "win_whls")
+PYTHON_BIN = sys.executable
 
 PYTHON_EMBED_URL = "https://www.python.org/ftp/python/3.12.8/python-3.12.8-embed-amd64.zip"
 PYTHON_EMBED_ZIP = os.path.join(CACHE_DIR, "python-3.12.8-embed-amd64.zip")
@@ -94,10 +95,9 @@ def download_and_install_wheels():
         "greenlet==3.5.5",
     ]
 
-    pip_bin = os.path.join(ROOT_DIR, ".venv", "bin", "pip")
     print("Downloading Windows x64 binary wheels...")
     cmd = [
-        pip_bin, "download",
+        PYTHON_BIN, "-m", "pip", "download",
         "--dest", WHL_CACHE,
         "--only-binary=:all:",
         "--platform", "win_amd64",
@@ -141,7 +141,6 @@ def create_clean_database():
         os.remove(clean_db_path)
 
     # Run Python in a subprocess with explicit DATABASE_URL pointing to the new clean db
-    python_bin = os.path.join(ROOT_DIR, ".venv", "bin", "python")
     code = f"""
 import os
 os.environ["DATABASE_URL"] = "sqlite:///{clean_db_path}"
@@ -152,7 +151,7 @@ print("Clean DB initialized successfully.")
 """
     env = os.environ.copy()
     env["PYTHONPATH"] = ROOT_DIR
-    subprocess.check_call([python_bin, "-c", code], env=env)
+    subprocess.check_call([PYTHON_BIN, "-c", code], env=env)
     print(f"Clean database created at {clean_db_path} ({os.path.getsize(clean_db_path)} bytes).")
 
 def create_launchers_and_entrypoint():

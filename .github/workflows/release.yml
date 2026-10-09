@@ -45,7 +45,7 @@ jobs:
 
       - name: Build Linux standalone binary
         run: |
-          pyinstaller --noconfirm --clean --onefile \
+          python -m PyInstaller --noconfirm --clean --onefile \
             --add-data "src/frontend/build:frontend_build" \
             --hidden-import "uvicorn.logging" \
             --hidden-import "uvicorn.loops" \
